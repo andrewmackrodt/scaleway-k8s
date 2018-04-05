@@ -6,8 +6,8 @@
       name: tinyproxy
       state: present
     
-   - name: Add tinyproxy user
-     user:
+  - name: Add tinyproxy user
+    user:
       name: tinyproxy
       state: present
       group: tinyproxy
