@@ -16,7 +16,7 @@
       - docker-engine
       - docker.io
 
-  - name: Install package for Docker.io https Docker repository
+  - name: Install docker package dependencies
     apt:
       state: latest
       name: "{{ item }}"
@@ -30,7 +30,7 @@
     apt_key:
       url: "{{ docker_apt_key }}"
       state: present
-    when: 
+    when:
       - "'proxy' in group_names"
       - inventory_hostname == groups['proxy'][0]
 
@@ -38,10 +38,10 @@
     apt_key:
       url: "{{ docker_apt_key }}"
       state: present
-    environment: 
+    environment:
       https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
     when:
-    #  - "'workers' in group_names or 'masters' in group_names" 
+    #  - "'workers' in group_names or 'masters' in group_names"
       - inventory_hostname != groups['proxy'][0]
 
   - name: Setting Docker repository depending on arch
@@ -79,20 +79,19 @@
     template:
       src: docker.service.j2
       dest: /lib/systemd/system/docker.service
-    notify:
-      - reload systemd
-    when: inventory_hostname != groups['proxy'][0]
+    notify: reload systemd
 
-  - name: Flushing handlers
-    meta: flush_handlers
-    when: "'workers' in group_names or 'masters' in group_names" 
+  - name: Create docker config directory
+    file:
+      path: /etc/docker
+      mode: 0700
+      recurse: yes
 
   - name: Templating /etc/docker/daemon.json
     template:
       src: daemon.json.j2
       dest: /etc/docker/daemon.json
-    notify:
-      - restart docker
+    notify: restart docker
 
   - name: Flushing handlers 2
     meta: flush_handlers
@@ -102,7 +101,6 @@
     register: docker_version
 
   - name: Printing Docker version
-    debug:
-      var: docker_version
+    debug: var=docker_version
 
   when: ansible_distribution == "Ubuntu"
