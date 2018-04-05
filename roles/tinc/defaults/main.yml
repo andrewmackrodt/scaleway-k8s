@@ -1,7 +1,5 @@
 ---
 netname: meshvpn
-# we assume servers have online one interface
-physical_ip: "{{ ansible_eth0.ipv4.address }}"
 
 vpn_interface: tun0
 
