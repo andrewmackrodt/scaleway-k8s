@@ -114,7 +114,7 @@
 
   - name: ensure tinc is started
     systemd:
-      name: tinc@{{ netname }}
+      name: tinc
       enabled: yes
       state: started
 
