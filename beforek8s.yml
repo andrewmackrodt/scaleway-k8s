@@ -2,16 +2,6 @@
 - hosts: proxy:masters:workers
   gather_facts: True
 
-# Proxy has public ip
-#- hosts: proxy
-#  roles:
-#    - iptables
-
-# this force reload iptables
-#- hosts: proxy
-#  tasks:
-#    - meta: flush_handlers
-
 - hosts: proxy
   roles:
     - tinyproxy
