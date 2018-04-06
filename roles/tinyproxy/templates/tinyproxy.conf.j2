@@ -28,11 +28,6 @@ Port 8888
 # interfaces present.
 #
 #Listen 192.168.0.1
-{% if ansible_tun0 is defined %}
-Listen {{ ansible_tun0.ipv4.address }}
-{% else %}
-Listen {{ansible_eth0.ipv4.address}}
-{% endif %}
 
 #
 # Bind: This allows you to specify which interface will be used for
@@ -107,7 +102,7 @@ Logfile "/var/log/tinyproxy/tinyproxy.log"
 #Syslog On
 
 #
-# LogLevel: 
+# LogLevel:
 #
 # Set the logging level. Allowed settings are:
 #	Critical	(least verbose)
