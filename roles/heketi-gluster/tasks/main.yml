@@ -6,6 +6,9 @@
   with_items:
     - glusterfs-client
     - jq
+  register: result
+  retries: 3
+  until: result is success
 
 - name: modprobe
   modprobe:

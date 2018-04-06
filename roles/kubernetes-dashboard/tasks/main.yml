@@ -3,6 +3,9 @@
   apt:
     name: python-passlib
     state: latest
+  register: result
+  retries: 3
+  until: result is success
   when: basic_auth == True
 
 - name: Creating htpasswd file if k8s has basic auth

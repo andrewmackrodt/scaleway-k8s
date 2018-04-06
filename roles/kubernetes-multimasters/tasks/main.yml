@@ -145,6 +145,9 @@
       - kubeadm
       - kubectl
       - kubernetes-cni
+    register: result
+    retries: 3
+    until: result is success
 
   # generate a new token for the first masters
   - name: Generating a kubeadm token

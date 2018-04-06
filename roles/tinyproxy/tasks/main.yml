@@ -33,6 +33,9 @@
           apt:
             name: tinyproxy
             state: latest
+          register: result
+          retries: 3
+          until: result is success
 
         - name: Ensure tinyproxy is stopped
           systemd:

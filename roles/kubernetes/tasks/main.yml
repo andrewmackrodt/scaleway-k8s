@@ -55,6 +55,9 @@
       - kubeadm
       - kubectl
       - kubernetes-cni
+    register: result
+    retries: 3
+    until: result is success
 
   - name: Checking if first master was initialized
     stat:

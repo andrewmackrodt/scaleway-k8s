@@ -6,6 +6,9 @@
     apt:
       upgrade: dist
       update_cache: yes
+    register: result
+    retries: 3
+    until: result is success
 
   - name: Ensure docker packages are not present
     apt:
@@ -25,6 +28,9 @@
       - ca-certificates
       - curl
       - software-properties-common
+    register: result
+    retries: 3
+    until: result is success
 
   - name: Adding Docker official gpg key (without proxy)
     apt_key:
@@ -66,6 +72,9 @@
     apt:
       name: docker-ce={{ docker_version }}
       update_cache: yes
+    register: result
+    retries: 3
+    until: result is success
 
   - name: Pin docker-ce release
     copy:
