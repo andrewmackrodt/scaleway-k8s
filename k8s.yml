@@ -1,7 +1,6 @@
 ---
-# Setting up all hosts
 - hosts: proxy:masters:workers
-  tasks: [ ]
+  gather_facts: True
 
 # Manual etc when we have more than 1 masters
 - hosts: masters

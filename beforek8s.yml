@@ -1,6 +1,16 @@
-# Setting up all hosts
+---
 - hosts: proxy:masters:workers
-  tasks: [ ]
+  gather_facts: True
+
+# Proxy has public ip
+#- hosts: proxy
+#  roles:
+#    - iptables
+
+# this force reload iptables
+#- hosts: proxy
+#  tasks:
+#    - meta: flush_handlers
 
 - hosts: proxy
   roles:
@@ -12,7 +22,7 @@
     - meta: flush_handlers
 
 # Setting up apt-proxy on master and workers (private ips)
-- hosts: masters:workers
+- hosts: proxy:masters:workers
   roles:
     - apt-proxy
 
@@ -31,13 +41,8 @@
     - meta: flush_handlers
 
 # Apt proxy now should use tinc ip
-- hosts: masters:workers
+- hosts: proxy:masters:workers
   roles:
     - apt-proxy
 
-# Ready to install docker
-- hosts: proxy:masters:workers
-  roles:
-    - common
-    - docker
-
+- import_playbook: docker.yml

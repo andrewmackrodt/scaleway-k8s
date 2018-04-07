@@ -1,69 +1,7 @@
 ---
-# Setting up all hosts
-- hosts: proxy:masters:workers
-  tasks: [ ]
+- import_playbook: beforek8s.yml
 
-# Proxy has public ip
-#- hosts: proxy
-#  roles:
-#    - iptables
-
-# this force reload iptables
-#- hosts: proxy
-#  tasks:
-#    - meta: flush_handlers
-
-- hosts: proxy
-  roles:
-    - tinyproxy
-
-# this force reload tinyproxy
-- hosts: proxy
-  tasks:
-    - meta: flush_handlers
-
-# Setting up apt-proxy on master and workers (private ips)
-- hosts: proxy:masters:workers
-  roles:
-    - apt-proxy
-
-# Setting mesh vpn using tinc
-- hosts: proxy:masters:workers
-  roles:
-    - tinc
-
-# Proxy is now listening on tinc ip
-- hosts: proxy
-  roles:
-    - tinyproxy
-
-- hosts: proxy
-  tasks:
-    - meta: flush_handlers
-
-# Apt proxy now should use tinc ip
-- hosts: proxy:masters:workers
-  roles:
-    - apt-proxy
-
-# Ready to install docker
-- hosts: proxy:masters:workers
-  roles:
-    - common
-    - docker
-
-# Manual etc when we have more than 1 masters
-- hosts: masters
-  roles:
-    - etcd
-
-- hosts: proxy:masters:workers
-  roles:
-    - kubernetes
-
-- hosts: proxy:masters:workers
-  roles:
-    - kubernetes-multimasters
+- import_playbook: k8s.yml
 
 # Deploying ingress controller, lego, dashboard, and helm-monocular
 - hosts: masters:proxy
@@ -73,6 +11,4 @@
     - kubernetes-dashboard
     #- helm-monocular
 
-- hosts: masters:proxy:workers
-  roles:
-    - heketi-gluster
+- import_playbook: gluster.yml
