@@ -4,7 +4,7 @@ kubernetes_apt_key: https://packages.cloud.google.com/apt/doc/apt-key.gpg
 kubernetes_apt_channel: main
 kubernetes_release: xenial
 # versions can be found here
-kubernetes_version: v1.9.0
+kubernetes_version: v1.10.1
 kubernetes_port: 6443
 
 # kubeadm
