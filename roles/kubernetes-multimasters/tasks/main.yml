@@ -2,6 +2,19 @@
 - name: kubernetes multimasters
   block:
 
+  - name: Get the kernel revision
+    shell: "uname -r"
+    register: kernel
+    changed_when: False
+
+  - name: Install kernel image
+    apt:
+      state: present
+      name: "{{ 'linux-image-' + kernel.stdout | regex_replace('^([0-9]+\\.[0-9]+\\.[0-9]+)-[0-9]+', '\\1*') }}"
+    register: result
+    retries: 3
+    until: result is success
+
   - name: modprobe
     modprobe:
       name: "{{ item }}"

@@ -2,6 +2,19 @@
 - name: Kubernetes installation
   block:
 
+  - name: Get the kernel revision
+    shell: "uname -r"
+    register: kernel
+    changed_when: False
+
+  - name: Install kernel headers
+    apt:
+      state: present
+      name: "{{ 'linux-image-' + kernel.stdout }}"
+    register: result
+    retries: 3
+    until: result is success
+
   - name: Fixing nasty bug
     shell: "iptables -P FORWARD ACCEPT"
     ignore_errors: True
