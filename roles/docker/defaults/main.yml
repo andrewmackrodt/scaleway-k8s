@@ -4,3 +4,4 @@ docker_apt_repository: https://download.docker.com/linux/ubuntu
 docker_apt_channel: stable
 # Docker daemon config file
 docker_daemon_config: /etc/docker/daemon.json
+docker_version: 17.03.*

@@ -64,9 +64,16 @@
 
   - name: Install docker-ce
     apt:
-      name: docker-ce
-      state: latest
+      name: docker-ce={{ docker_version }}
       update_cache: yes
+
+  - name: Pin docker-ce release
+    copy:
+      dest: /etc/apt/preferences.d/docker-ce
+      content: |
+        Package: docker-ce
+        Pin: version {{ docker_version }}
+        Pin-Priority: 1002
 
   - name: Fixing systemd unit for Docker config file
     template:
