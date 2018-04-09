@@ -164,6 +164,21 @@
     when:
       - "'masters' in group_names"
 
+  # KUBELET_EXTRA_ARGS
+  - name: Additional configuration
+    template:
+      src: local-extras.conf.j2
+      dest: /etc/systemd/system/kubelet.service.d/90-local-extras.conf
+      mode: 0640
+    when:
+      - "'masters' in group_names"
+      - "kubelet_fail_swap_on == False"
+    notify:
+      - reload systemd
+      - restart kubelet
+
+  - meta: flush_handlers
+
   # we get kubectl output to check if we have to add the node or not
   # errors are ignore in case of the first initialization on the first master
   - name: Getting kubectl outpout
@@ -173,7 +188,12 @@
     register: kubectl_output
 
   - name: Kubeadm init on first master
-    shell: "kubeadm init --config /tmp/kubeadm_config"
+    shell: |
+      kubeadm init \
+        --config /tmp/kubeadm_config
+        {%- if kubeadm_ignore_preflight_errors | length > 0 %} \
+          --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }}
+        {% endif %}
     register: kubeadm_output
     when:
       # only run this command if this is the fist master
@@ -252,7 +272,12 @@
     delegate_to: "{{ groups.masters[0] }}"
 
   - name: Initializing other masters
-    shell: "kubeadm init --config /tmp/kubeadm_config"
+    shell: |
+      kubeadm init \
+        --config /tmp/kubeadm_config
+        {%- if kubeadm_ignore_preflight_errors | length > 0 %} \
+          --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }}
+        {% endif %}
     when:
       # this is the master host
       - "'masters' in group_names"
@@ -284,7 +309,14 @@
     when: inventory_hostname != groups["masters"]
 
   - name: Joining cluster on other nodes
-    shell: "kubeadm join --token={{ hostvars[groups['masters'][0]]['kubeadm_token'].stdout }} {{ api_floating_ip }}:6443 --skip-preflight-checks --discovery-token-unsafe-skip-ca-verification"
+    shell: |
+      kubeadm join \
+        --token={{ hostvars[groups['masters'][0]]['kubeadm_token'].stdout }} \
+        --discovery-token-unsafe-skip-ca-verification \
+        {%- if kubeadm_ignore_preflight_errors | length > 0 %}
+          --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }} \
+        {% endif %}
+        {{ api_floating_ip }}:{{ api_floating_port }}
     register: kubedadm_output
     when:
      - "'masters' not in group_names"

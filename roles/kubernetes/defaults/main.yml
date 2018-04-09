@@ -7,6 +7,10 @@ kubernetes_release: xenial
 kubernetes_version: v1.9.0
 kubernetes_port: 6443
 
+# kubeadm
+kubeadm_ignore_preflight_errors: ""
+kubelet_fail_swap_on: True
+
 # Flannel
 # these will determine the number of pods you can run
 # cirdr should be at least /16 https://kubernetes.io/docs/admin/kubeadm/

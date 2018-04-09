@@ -66,7 +66,14 @@
     when: inventory_hostname == groups["masters"][0]
 
   - name: Kubeadm init on first master
-    shell: "kubeadm init --apiserver-advertise-address={{ vpn_ip }} --pod-network-cidr={{ pod_subnet }} --kubernetes-version {{ kubernetes_version }}"
+    shell: |
+      kubeadm init \
+        --apiserver-advertise-address={{ vpn_ip }} \
+        --pod-network-cidr={{ pod_subnet }} \
+        --kubernetes-version {{ kubernetes_version }}
+        {%- if kubeadm_ignore_preflight_errors | length > 0 %} \
+          --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }}
+        {% endif %}
     when:
       - inventory_hostname == groups["masters"][0]
 
@@ -133,7 +140,14 @@
     when: inventory_hostname != groups["masters"]
 
   - name: Joining cluster on other nodes
-    shell: "kubeadm join --token={{ hostvars[groups['masters'][0]]['token'].stdout_lines[1] }} {{ hostvars[groups['masters'][0]]['vpn_ip'] }}:{{ kubernetes_port }}"
+    shell: |
+      kubeadm join \
+        --token={{ hostvars[groups['masters'][0]]['token'].stdout_lines[1] }} \
+        --discovery-token-unsafe-skip-ca-verification \
+        {%- if kubeadm_ignore_preflight_errors | length > 0 %}
+          --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }} \
+        {% endif %}
+        {{ hostvars[groups['masters'][0]]['vpn_ip'] }}:{{ kubernetes_port }}
     when:
      - inventory_hostname != groups["masters"][0]
      - "'/usr/local/bin/kube-proxy' not in kube_proxy_running.stdout"
