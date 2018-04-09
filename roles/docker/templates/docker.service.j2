@@ -29,7 +29,7 @@ KillMode=process
 Restart=on-failure
 StartLimitBurst=3
 StartLimitInterval=60s
-Environment="HTTPS_PROXY=http://{{ hostvars[groups['proxy'][0]]['vpn_ip'] }}:8888/" "HTTP_PROXY=http://{{ hostvars[groups['proxy'][0]]['vpn_ip'] }}:8888/" "NO_PROXY="https://cp-par1.scaleway.com,https://cp-ams1.scaleway.com,https://account.scaleway.com,http://169.254.42.42"
+Environment="HTTPS_PROXY=http://{{ hostvars[groups['proxy'][0]]['vpn_ip'] }}:8888/ HTTP_PROXY=http://{{ hostvars[groups['proxy'][0]]['vpn_ip'] }}:8888/ NO_PROXY=https://cp-par1.scaleway.com,https://cp-ams1.scaleway.com,https://account.scaleway.com,http://169.254.42.42,192.168.66.0/24"
 
 [Install]
 WantedBy=multi-user.target
