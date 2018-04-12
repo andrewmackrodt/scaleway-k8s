@@ -104,24 +104,10 @@
   # at this point everyone should be able to ping the api floating ip
   # add a test here and don't continue until everyone does not ping the api ip
 
-  - name: Adding Kubernetes official gpg key (without proxy)
+  - name: Adding Kubernetes official gpg key
     apt_key:
       url: "{{ kubernetes_apt_key }}"
       state: present
-    when:
-      # the only node to have an internet access is the first proxy node
-      - "'proxy' in group_names"
-      - inventory_hostname == groups['proxy'][0]
-
-  - name: Adding Kubernetes official gpg key (with proxy)
-    apt_key:
-      url: "{{ kubernetes_apt_key }}"
-      state: present
-    environment:
-      https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-    when:
-      # all the other node do not have an internet access and need to use the proxy
-      - inventory_hostname != groups['proxy'][0]
 
   - name: Setting Kubernetes repository depending Ubuntu version
     set_fact:

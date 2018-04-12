@@ -19,19 +19,10 @@
     shell: "iptables -P FORWARD ACCEPT"
     ignore_errors: True
 
-  - name: Adding Kubernetes official gpg key (without proxy)
+  - name: Adding Kubernetes official gpg key
     apt_key:
       url: "{{ kubernetes_apt_key }}"
       state: present
-    when: "'proxy' in group_names"
-
-  - name: Adding Kubernetes official gpg key (with proxy)
-    apt_key:
-      url: "{{ kubernetes_apt_key }}"
-      state: present
-    environment:
-      https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-    when: "'workers' in group_names or 'masters' in group_names"
 
   - name: Setting Kubernetes repository depending Ubuntu version
     set_fact:
@@ -108,10 +99,6 @@
     get_url:
       url: "{{ cni_manifest }}"
       dest: /tmp/flannel.yml
-    environment:
-      # flannel manifest is downloaded via http
-      http_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-      https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
     when:
       - inventory_hostname == groups["masters"][0]
 

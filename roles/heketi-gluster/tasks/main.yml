@@ -26,9 +26,6 @@
   get_url:
     url: "{{ heketi_sources }}"
     dest: /tmp/heketi.tar.gz
-  environment:
-    http_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-    https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
   when: "'masters' in group_names"
 
 - name: Unarchive Heketi

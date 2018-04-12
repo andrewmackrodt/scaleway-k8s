@@ -1,2 +1,16 @@
 #!/bin/sh
+
 ifconfig {{ vpn_interface }} {{ vpn_ip }} netmask {{ vpn_netmask }}
+
+{% if inventory_hostname != tinc_primary_router %}
+ROUTE_GET_IP={{ tinc_route_get_ip }}
+INTERFACE=$(ip route get $ROUTE_GET_IP | head -n1 | sed -E 's/.+ dev ([^ ]+).+/\1/')
+GATEWAY=$(ip route | awk '$3 == "'$INTERFACE'" { print $1 }' | cut -d'/' -f1)
+
+ip route add 10.0.0.0/8 via $GATEWAY dev $INTERFACE
+ip route add 169.254.0.0/16 via $GATEWAY dev $INTERFACE
+ip route add 172.16.0.0/12 via $GATEWAY dev $INTERFACE
+ip route add 192.168.0.0/16 via $GATEWAY dev $INTERFACE
+
+ip route replace default via {{ tinc_route_default_ip }}
+{% endif %}

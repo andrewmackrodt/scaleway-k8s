@@ -74,8 +74,6 @@
     repo: https://github.com/chmod666org/scaleway-ipmove
     dest: /usr/local/bin/scaleway-ipmove
     force: yes
-  environment:
-    https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
   when: "'proxy' in group_names"
 
 - name: nginx_ingress_controller | notify.sh

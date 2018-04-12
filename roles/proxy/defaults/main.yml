@@ -1,0 +1,24 @@
+---
+# the ip address prefix applied to tun* devices, e.g. assuming that
+# the default of 10.50. is used and tun4 is used, the addresses
+# 10.50.4.1 and 10.50.4.2 will be used on both nodes; the trailing
+# period must be included.
+proxy_ssh_ip_prefix: 10.50.
+
+# the name of the private interface which is reachable by other hosts
+proxy_private_interface: "" # autodetected if empty
+
+# use 1 for tun1, 10 for tun10 etc
+proxy_ssh_tun_index_min: 1
+
+# the ssh proxy user created on all hosts
+proxy_ssh_user: sshproxy
+
+# the timeout in seconds when checking urls for internet access
+proxy_test_timeout: 5
+
+# the addresses to try calling when checking for internet access
+proxy_test_urls:
+  - https://www.cloudflare.com/
+  - https://letsencrypt.org/
+  - http://mirrors.ubuntu.com/

@@ -1,0 +1,80 @@
+---
+- name: Get the internet interface
+  shell: ip route get 1.1.1.1 | head -n1 | sed -E 's/^.+dev ([^ ]+).+$/\1/'
+  register: interface_result
+  changed_when: False
+  check_mode: False
+
+- name: Check for internet access
+  shell: |-
+    false \{% for url in proxy_test_urls %}
+      || curl -IsSL -m{{ proxy_test_timeout }} {{ url }} \
+    {% endfor %}
+      || false
+  args:
+    warn: False
+  register: curl_result_initial
+  ignore_errors: True
+  changed_when: False
+  check_mode: False
+
+- name: Set host interface facts
+  set_fact:
+    proxy_interface: "{{ interface_result.stdout | trim }}"
+    proxy_inet: "{{ curl_result_initial.rc == 0 }}"
+
+- name: Assert at least one node has internet connectivity
+  assert:
+    that: hostvars.values() | selectattr('proxy_inet', '==', True) | list | length != 0
+  run_once: true
+
+- name: Set router hostname fact
+  set_fact:
+    proxy_router_hostname: "{{ hostvars.values() | selectattr('proxy_inet', '==', True) | map(attribute='inventory_hostname') | first }}"
+
+- name: Allow ip forwarding (kernel)
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: 1
+    sysctl_set: True
+    reload: True
+
+- name: Allow ip forwarding (iptables)
+  iptables:
+    table: nat
+    chain: POSTROUTING
+    out_interface: "{{ proxy_interface }}"
+    jump: MASQUERADE
+  register: iptables_result
+
+- name: Save iptables
+  shell: |
+    mkdir -p /etc/iptables
+    iptables-save > /etc/iptables/rules.v4
+  when: iptables_result.changed
+
+- name: Set up SSH tunnels
+  include: ssh-up.yml
+  when: hostvars.values() | selectattr('proxy_inet', '==', False) | list | length != 0
+
+- name: Set up tinc
+  include_role:
+    name: tinc
+
+- name: Set up keepalived
+  include: keepalived.yml
+
+- name: Tear down SSH tunnels
+  include: ssh-down.yml
+
+- name: Check for internet access
+  shell: |-
+    false \{% for url in proxy_test_urls %}
+      || curl -IsSL -m{{ proxy_test_timeout }} {{ url }} \
+    {% endfor %}
+      || false
+  args:
+    warn: False
+  register: curl_result
+  changed_when: curl_result_initial.rc != curl_result.rc
+  check_mode: False

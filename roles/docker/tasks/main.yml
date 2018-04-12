@@ -32,23 +32,10 @@
     retries: 3
     until: result is success
 
-  - name: Adding Docker official gpg key (without proxy)
+  - name: Adding Docker official gpg key
     apt_key:
       url: "{{ docker_apt_key }}"
       state: present
-    when:
-      - "'proxy' in group_names"
-      - inventory_hostname == groups['proxy'][0]
-
-  - name: Adding Docker official gpg key (with proxy)
-    apt_key:
-      url: "{{ docker_apt_key }}"
-      state: present
-    environment:
-      https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-    when:
-    #  - "'workers' in group_names or 'masters' in group_names"
-      - inventory_hostname != groups['proxy'][0]
 
   - name: Setting Docker repository depending on arch
     set_fact:
@@ -67,6 +54,12 @@
       repo: "{{ docker_repository }}"
       state: present
       filename: 'docker'
+
+  # TODO fix this - fails when ip route is using tun0 in scaleway
+  - name: Explictly create docker0
+    shell: |
+      ip link add name docker0 type bridge || true
+      ip addr add dev docker0 172.17.0.1/16 || true
 
   - name: Install docker-ce
     apt:
