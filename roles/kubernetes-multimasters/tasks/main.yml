@@ -55,7 +55,7 @@
     register: first_master_key
     when:
       - inventory_hostname == groups['masters'][0]
-  
+
   - name: Propagate the key to other masters
     authorized_key:
       key: "{{ hostvars[groups['masters'][0]]['first_master_key'].stdout }}"
@@ -212,33 +212,21 @@
     when:
       - inventory_hostname == groups["masters"][0]
 
-  # flannel deployement
-  - name: Getting calico manifest
-    get_url:
-      url: "{{ flannel_manifest }}"
-      dest: /tmp/flannel.yml
-    environment:
-      # calico manifest is downloaded via http
-      http_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-      https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-    when:
-      - inventory_hostname == groups["masters"][0]
-
   - name: Checking if flannel deploy exists
-    shell: "kubectl get deploy --namespace=kube-system  flannel"
+    shell: "kubectl get deploy --namespace=kube-system flannel"
     ignore_errors: True
-    register: calico_deployment
+    register: cni_deployment
     when: inventory_hostname == groups["masters"][0]
 
-  - name: Creating flannel
-    shell: "kubectl create -f /tmp/flannel.yml"
+  - name: Configure cni
+    shell: "kubectl apply -f {{ cni_manifest }}"
     when:
       - inventory_hostname == groups["masters"][0]
-      - calico_deployment.rc != 0
+      - cni_deployment.rc != 0
 
   # at this point ensure that kubedns is running before continue
-  - name: Be sure kubedns is running ok 
-    shell: 'kubectl get pods -n=kube-system | grep kube-dns'
+  - name: Be sure kubedns is running ok
+    shell: "kubectl get pods --namespace=kube-system | grep kube-dns"
     register: result
     until: result.stdout.find("3/3") != -1
     retries: 18

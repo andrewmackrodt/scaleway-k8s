@@ -66,7 +66,7 @@
     when: inventory_hostname == groups["masters"][0]
 
   - name: Kubeadm init on first master
-    shell: "kubeadm init --apiserver-advertise-address={{ vpn_ip }} --pod-network-cidr={{ flannel_cidr }} --kubernetes-version {{ kubernetes_version }}"
+    shell: "kubeadm init --apiserver-advertise-address={{ vpn_ip }} --pod-network-cidr={{ pod_subnet }} --kubernetes-version {{ kubernetes_version }}"
     when:
       - inventory_hostname == groups["masters"][0]
 
@@ -96,51 +96,29 @@
     when:
       - inventory_hostname == groups["masters"][0]
 
-  # flannel deployement
-  - name: Getting calico manifest
+  # flannel deployment
+  - name: Getting flannel manifest
     get_url:
-      url: "{{ flannel_manifest }}"
+      url: "{{ cni_manifest }}"
       dest: /tmp/flannel.yml
     environment:
-      # calico manifest is downloaded via http
+      # flannel manifest is downloaded via http
       http_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
       https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
     when:
       - inventory_hostname == groups["masters"][0]
 
   - name: Checking if flannel deploy exists
-    shell: "kubectl get deploy --namespace=kube-system  flannel"
+    shell: "kubectl get deploy --namespace=kube-system flannel"
     ignore_errors: True
-    register: calico_deployment
+    register: cni_deployment
     when: inventory_hostname == groups["masters"][0]
 
   - name: Creating flannel
     shell: "kubectl create -f /tmp/flannel.yml"
     when:
       - inventory_hostname == groups["masters"][0]
-
-  #- name: Getting calico manifest
-  #  get_url:
-  #    url: "{{ calico_manifest }}"
-  #    dest: /tmp/calico.yml
-  #  environment:
-  #    # calico manifest is downloaded via http
-  #    http_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-  #    https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-  #  when:
-  #    - inventory_hostname == groups["masters"][0]
-
-  #- name: Checking if calico deploy exists
-  #  shell: "kubectl get deploy --namespace=kube-system  calico-policy-controller"
-  #  ignore_errors: True
-  #  register: calico_deployment
-  #  when: inventory_hostname == groups["masters"][0]
-
-  #- name: Creating calico
-  #  shell: "kubectl create -f /tmp/calico.yml"
-  #  when:
-  #    - inventory_hostname == groups["masters"][0]
-  #    - calico_deployment.rc != 0
+      - cni_deployment.rc != 0
 
   - name: Getting token
     shell: "kubeadm token list | tail -f | awk '{print $1}'"
