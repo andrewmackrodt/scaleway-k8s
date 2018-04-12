@@ -72,7 +72,7 @@
     when: "'masters' in group_names"
 
   - name: Wait for keepalived to be alive :-)
-    shell: 'docker ps | grep chmod666/keepalived | grep "Up" | grep "minutes ago"'
+    shell: 'docker ps | grep chmod666/keepalived | grep "Up"'
     register: result
     until: result.stdout.find("chmod666/keepalived") != -1
     retries: 18
