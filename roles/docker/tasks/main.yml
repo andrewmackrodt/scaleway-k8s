@@ -2,14 +2,6 @@
 - name: Docker installation for Ubuntu distribution
   block:
 
-  - name: Update all packages to the latest version
-    apt:
-      upgrade: dist
-      update_cache: yes
-    register: result
-    retries: 3
-    until: result is success
-
   - name: Ensure docker packages are not present
     apt:
       state: absent
@@ -23,6 +15,8 @@
     apt:
       state: latest
       name: "{{ item }}"
+      update_cache: yes
+      cache_valid_time: 86400
     with_items:
       - apt-transport-https
       - ca-certificates
