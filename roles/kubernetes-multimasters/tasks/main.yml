@@ -6,6 +6,7 @@
     shell: "uname -r"
     register: kernel
     changed_when: False
+    check_mode: False
 
   - name: Install kernel image
     apt:
@@ -169,9 +170,11 @@
   # errors are ignore in case of the first initialization on the first master
   - name: Getting kubectl output
     shell: "kubectl get nodes"
-    when: inventory_hostname == groups["masters"][0]
     register: kubectl_output
+    changed_when: False
+    check_mode: False
     failed_when: kubectl_output.rc != 0 and not 'did you specify the right host' in kubectl_output.stderr
+    when: inventory_hostname == groups["masters"][0]
 
   - name: Kubeadm init on first master
     shell: |
@@ -185,7 +188,7 @@
       # only run this command if this is the fist master
       # and this one hasn't be initialized
       - inventory_hostname == groups["masters"][0]
-      - inventory_hostname not in kubectl_output.stdout
+      - ansible_hostname not in kubectl_output.stdout
 
   - name: Kubedadm output
     debug: var=kubeadm_output
@@ -260,7 +263,7 @@
           # this is the master host
           - "'masters' in group_names"
           # master hasn't be already initialized
-          - inventory_hostname not in hostvars[groups['masters'][0]]['kubectl_output'].stdout
+          - ansible_hostname not in hostvars[groups['masters'][0]]['kubectl_output'].stdout
 
       # fixing kubectl
       - name: kubectl config
