@@ -1,0 +1,140 @@
+version: "2.1"
+
+x-service-default: &default
+  image: k8s-ha-scaleway
+  build:
+    context: docker/images/scaleway
+  tty: true
+  security_opt:
+    - seccomp:unconfined
+    - apparmor:unconfined
+  cap_add:
+    - ALL
+  devices:
+    - /dev/kmsg
+    - /dev/net/tun
+  tmpfs:
+    - /run
+  volumes:
+    # privileged requirements
+    - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    # file will be copied and unmounted on boot
+    - ${SSH_AUTHORIZED_KEYS:-~/.ssh/id_rsa.pub}:/root/.ssh/authorized_keys:ro
+  networks:
+    - private
+
+x-service-proxy: &proxy
+  <<: *default
+  networks:
+    - private
+
+    # For future implementation, give all proxies a public ip address and
+    # use a round robin load balancer to direct traffic so that there isn't
+    # a bottleneck created by routing all traffic through a single node.
+    #- public
+
+services:
+  proxy0:
+    hostname: scw-5e1105
+    <<: *proxy
+    ports:
+      - "127.0.0.1:${PROXY_0_SSH_PORT:-2222}:22"
+    networks:
+      - public
+      - private
+    volumes:
+      - proxy0_docker:/var/lib/docker
+      - proxy0_kubelet:/var/lib/kubelet
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - ${SSH_AUTHORIZED_KEYS:-~/.ssh/id_rsa.pub}:/root/.ssh/authorized_keys:ro
+  proxy1:
+    hostname: scw-9a2cb4
+    <<: *proxy
+    volumes:
+      - proxy1_docker:/var/lib/docker
+      - proxy1_kubelet:/var/lib/kubelet
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - ${SSH_AUTHORIZED_KEYS:-~/.ssh/id_rsa.pub}:/root/.ssh/authorized_keys:ro
+  master0:
+    hostname: scw-1b4923
+    <<: *default
+    networks:
+      - private
+    volumes:
+      - master0_docker:/var/lib/docker
+      - master0_kubelet:/var/lib/kubelet
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - ${SSH_AUTHORIZED_KEYS:-~/.ssh/id_rsa.pub}:/root/.ssh/authorized_keys:ro
+  master1:
+    hostname: scw-de4916
+    <<: *default
+    volumes:
+      - master1_docker:/var/lib/docker
+      - master1_kubelet:/var/lib/kubelet
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - ${SSH_AUTHORIZED_KEYS:-~/.ssh/id_rsa.pub}:/root/.ssh/authorized_keys:ro
+  master2:
+    hostname: scw-226dc0
+    <<: *default
+    volumes:
+      - master2_docker:/var/lib/docker
+      - master2_kubelet:/var/lib/kubelet
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - ${SSH_AUTHORIZED_KEYS:-~/.ssh/id_rsa.pub}:/root/.ssh/authorized_keys:ro
+  worker0:
+    hostname: scw-60962b
+    <<: *default
+    volumes:
+      - worker0_docker:/var/lib/docker
+      - worker0_kubelet:/var/lib/kubelet
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - ${SSH_AUTHORIZED_KEYS:-~/.ssh/id_rsa.pub}:/root/.ssh/authorized_keys:ro
+  worker1:
+    hostname: scw-ce424a
+    <<: *default
+    volumes:
+      - worker1_docker:/var/lib/docker
+      - worker1_kubelet:/var/lib/kubelet
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - ${SSH_AUTHORIZED_KEYS:-~/.ssh/id_rsa.pub}:/root/.ssh/authorized_keys:ro
+  worker2:
+    hostname: scw-2c865a
+    <<: *default
+    volumes:
+      - worker2_docker:/var/lib/docker
+      - worker2_kubelet:/var/lib/kubelet
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - ${SSH_AUTHORIZED_KEYS:-~/.ssh/id_rsa.pub}:/root/.ssh/authorized_keys:ro
+  metadata:
+    image: httpd:alpine
+    entrypoint: /bin/sh
+    command: |
+      -c "
+        echo '{\"_meta\":\"fake data we only need a 200 status code\"}' > /usr/local/apache2/htdocs/conf
+        exec httpd-foreground
+      "
+    networks:
+      - private
+
+networks:
+    public:
+    private:
+      internal: true
+
+volumes:
+  proxy0_docker:
+  proxy0_kubelet:
+  proxy1_docker:
+  proxy1_kubelet:
+  master0_docker:
+  master0_kubelet:
+  master1_docker:
+  master1_kubelet:
+  master2_docker:
+  master2_kubelet:
+  worker0_docker:
+  worker0_kubelet:
+  worker1_docker:
+  worker1_kubelet:
+  worker2_docker:
+  worker2_kubelet:
