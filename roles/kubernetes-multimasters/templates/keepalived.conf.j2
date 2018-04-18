@@ -21,12 +21,12 @@ vrrp_instance VI_1 {
 {% endif %}
   }
 
-{% if groups['masters'].index(inventory_hostname) == 0 %}
+{% if inventory_hostname == initial_master %}
   state MASTER
-  priority {{ groups['masters'].index(inventory_hostname) + 100 }}
+  priority 100
 {% else %}
   state BACKUP
-  priority {{ groups['masters'].index(inventory_hostname) + 50 }}
+  priority 50
 {% endif %}
   virtual_router_id {{ router_id }}
   nopreempt

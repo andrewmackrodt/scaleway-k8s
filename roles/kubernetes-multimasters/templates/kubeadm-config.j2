@@ -16,5 +16,5 @@ apiServerCertSANs:
 {% endfor %}
 - "{{ api_floating_ip }}"
 - "127.0.0.1"
-token: "{{ hostvars[groups['masters'][0]]['kubeadm_token'].stdout }}"
+token: "{{ hostvars[initial_master].kubeadm_token.stdout }}"
 tokenTTL: "0s"

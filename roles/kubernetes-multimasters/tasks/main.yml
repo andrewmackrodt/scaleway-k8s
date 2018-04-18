@@ -41,30 +41,30 @@
       path: /root/.ssh/id_rsa
     register: first_master_key_query
     when:
-      - inventory_hostname == groups['masters'][0]
+      - inventory_hostname == initial_master
 
   - name: Creates an ssh key on first master
     shell: ssh-keygen -b 2048 -t rsa -f /root/.ssh/id_rsa -q -N ""
     args:
       creates: /root/.ssh/id_rsa
     when:
-      - inventory_hostname == groups['masters'][0]
+      - inventory_hostname == initial_master
       - first_master_key_query.stat.exists == False
 
   - name: Register pub key on first master
     shell: cat /root/.ssh/id_rsa.pub
     register: first_master_key
     when:
-      - inventory_hostname == groups['masters'][0]
+      - inventory_hostname == initial_master
 
   - name: Propagate the key to other masters
     authorized_key:
-      key: "{{ hostvars[groups['masters'][0]]['first_master_key'].stdout }}"
+      key: "{{ hostvars[initial_master]['first_master_key'].stdout }}"
       user: root
       state: present
     when:
       - "'masters' in group_names"
-      - inventory_hostname != groups['masters'][0]
+      - inventory_hostname != initial_master
 
   - name: Creating /etc/keepalived on master nodes
     file:
@@ -140,8 +140,9 @@
   - name: Generating a kubeadm token
     shell: "kubeadm token generate"
     register: kubeadm_token
-    when:
-      - inventory_hostname == groups["masters"][0]
+    changed_when: False
+    check_mode: False
+    when: inventory_hostname == initial_master
 
   # generating the kubeadm config file only on master nodes
   - name: Creating kubeadm_config file
@@ -174,7 +175,7 @@
     changed_when: False
     check_mode: False
     failed_when: kubectl_output.rc != 0 and not 'did you specify the right host' in kubectl_output.stderr
-    when: inventory_hostname == groups["masters"][0]
+    when: inventory_hostname == initial_master
 
   - name: Kubeadm init on first master
     shell: |
@@ -187,12 +188,12 @@
     when:
       # only run this command if this is the fist master
       # and this one hasn't be initialized
-      - inventory_hostname == groups["masters"][0]
+      - inventory_hostname == initial_master
       - ansible_hostname not in kubectl_output.stdout
 
   - name: Kubedadm output
     debug: var=kubeadm_output
-    when: inventory_hostname == groups["masters"][0]
+    when: inventory_hostname == initial_master
 
   - name: Creating .kube file in $HOME
     # this will be needed on all masters nodes
@@ -234,7 +235,7 @@
         retries: 18
         delay: 10
 
-    when: inventory_hostname == groups["masters"][0]
+    when: inventory_hostname == initial_master
 
   # then we create the other masters
   - block:
@@ -250,7 +251,7 @@
         when:
           # distribute the pki files on masters that are not the first master
           - "'masters' in  group_names"
-        delegate_to: "{{ groups.masters[0] }}"
+        delegate_to: "{{ initial_master }}"
 
       - name: Initializing other masters
         shell: |
@@ -263,7 +264,7 @@
           # this is the master host
           - "'masters' in group_names"
           # master hasn't be already initialized
-          - ansible_hostname not in hostvars[groups['masters'][0]]['kubectl_output'].stdout
+          - ansible_hostname not in hostvars[initial_master]['kubectl_output'].stdout
 
       # fixing kubectl
       - name: kubectl config
@@ -274,7 +275,7 @@
         when:
           - "'masters' in group_names"
 
-    when: inventory_hostname != groups["masters"][0]
+    when: inventory_hostname != initial_master
 
   # add non masters
   - block:
@@ -286,7 +287,7 @@
       - name: Joining cluster on other nodes
         shell: |
           kubeadm join \
-            --token={{ hostvars[groups['masters'][0]]['kubeadm_token'].stdout }} \
+            --token={{ hostvars[initial_master]['kubeadm_token'].stdout }} \
             --discovery-token-unsafe-skip-ca-verification \
             {%- if kubeadm_ignore_preflight_errors | length > 0 %}
               --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }} \
@@ -308,6 +309,6 @@
     until: result.stdout.find("NotReady") == -1
     retries: 200
     delay: 10
-    when: inventory_hostname == groups['masters'][0]
+    when: inventory_hostname == initial_master
 
   when: groups.masters | length > 1

@@ -54,7 +54,7 @@
     stat:
       path: /etc/kubernetes
     register: kubernetes_directory
-    when: inventory_hostname == groups["masters"][0]
+    when: inventory_hostname == initial_master
 
   - name: Kubeadm init on first master
     shell: |
@@ -66,14 +66,14 @@
           --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }}
         {% endif %}
     when:
-      - inventory_hostname == groups["masters"][0]
+      - inventory_hostname == initial_master
 
   - name: Creating .kube file in $HOME
     file:
       path: ~/.kube
       state: directory
     when:
-      - inventory_hostname == groups["masters"][0]
+      - inventory_hostname == initial_master
 
   - name: Copying /etc/kubernetes/admin.conf to ~/.kube/config
     copy:
@@ -81,18 +81,18 @@
       dest: ~/.kube/config
       remote_src: yes
     when:
-      - inventory_hostname == groups["masters"][0]
+      - inventory_hostname == initial_master
 
   - name: Running first kubectl
     shell: "kubectl get nodes"
     register: first_kubectl
     when:
-      - inventory_hostname == groups["masters"][0]
+      - inventory_hostname == initial_master
 
   - name: Checking kubectl
     debug: var=first_kubectl
     when:
-      - inventory_hostname == groups["masters"][0]
+      - inventory_hostname == initial_master
 
   # flannel deployment
   - name: Getting flannel manifest
@@ -100,25 +100,25 @@
       url: "{{ cni_manifest }}"
       dest: /tmp/flannel.yml
     when:
-      - inventory_hostname == groups["masters"][0]
+      - inventory_hostname == initial_master
 
   - name: Checking if flannel deploy exists
     shell: "kubectl get deploy --namespace=kube-system flannel"
     ignore_errors: True
     register: cni_deployment
-    when: inventory_hostname == groups["masters"][0]
+    when: inventory_hostname == initial_master
 
   - name: Creating flannel
     shell: "kubectl create -f /tmp/flannel.yml"
     when:
-      - inventory_hostname == groups["masters"][0]
+      - inventory_hostname == initial_master
       - cni_deployment.rc != 0
 
   - name: Getting token
     shell: "kubeadm token list | tail -f | awk '{print $1}'"
     register: token
     when:
-      - inventory_hostname == groups["masters"][0]
+      - inventory_hostname == initial_master
 
   - name: Checking if kube-proxy is Running
     shell: "ps -ef | grep [k]ube-proxy"
@@ -129,14 +129,14 @@
   - name: Joining cluster on other nodes
     shell: |
       kubeadm join \
-        --token={{ hostvars[groups['masters'][0]]['token'].stdout_lines[1] }} \
+        --token={{ hostvars[initial_master]['token'].stdout_lines[1] }} \
         --discovery-token-unsafe-skip-ca-verification \
         {%- if kubeadm_ignore_preflight_errors | length > 0 %}
           --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }} \
         {% endif %}
-        {{ hostvars[groups['masters'][0]]['vpn_ip'] }}:{{ kubernetes_port }}
+        {{ hostvars[initial_master]['vpn_ip'] }}:{{ kubernetes_port }}
     when:
-     - inventory_hostname != groups["masters"][0]
+     - inventory_hostname != initial_master
      - "'/usr/local/bin/kube-proxy' not in kube_proxy_running.stdout"
 
   when:

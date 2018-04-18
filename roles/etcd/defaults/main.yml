@@ -9,5 +9,5 @@ etcd_initial_advertise_peer_urls: "http://{{ vpn_ip }}:2380"
 etcd_listen_peer_urls: "http://{{ vpn_ip }}:2380"
 # Create the list of initial cluster by using a template lookup
 etcd_initial_cluster: "{{ lookup('template', 'templates/initial_cluster.j2') | replace('\n', '')}}"
-etcd_initial_cluster_token: "token_{{ hostvars[groups['masters'][0]]['ansible_hostname'] }}"
+etcd_initial_cluster_token: "token_{{ hostvars[initial_master]['ansible_hostname'] }}"
 etcd_initial_cluster_state: "new"
