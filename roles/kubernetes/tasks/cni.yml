@@ -8,11 +8,11 @@
 
 - block:
     - name: Determine physical interface to use with cni
-      shell: "ip route get 169.254.42.42 | grep 'eth' | awk '$1 == \"169.254.42.42\" { print $3 }'"
+      shell: "ip route get 169.254.42.42 | head -n1 | sed -E 's/.+ dev ([^ ]+).+/\\1/'"
       register: cni_interface
       changed_when: False
       check_mode: False
-      failed_when: "'eth' not in cni_interface.stdout"
+      failed_when: "cni_interface.stdout is not match('^[a-z][a-z0-9]+$')"
 
     - name: Create directories
       file:
@@ -24,8 +24,12 @@
         - /etc/cni/net.d
         - /opt/cni/bin
 
+    - template:
+        src: kube-flannel.yml.j2
+        dest: /tmp/kube-flannel.yml
+
     - name: Configure cni
-      shell: "kubectl apply -f {{ cni_manifest }}"
+      shell: "kubectl apply -f /tmp/kube-flannel.yml"
       register: cni_output
       # flannel has trouble unless we restart the kubelet service
       # we'll flush_handlers later
