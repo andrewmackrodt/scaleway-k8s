@@ -9,8 +9,4 @@
 
 - hosts: proxy:masters:workers
   roles:
-    - kubernetes
-
-- hosts: proxy:masters:workers
-  roles:
     - kubernetes-multimasters

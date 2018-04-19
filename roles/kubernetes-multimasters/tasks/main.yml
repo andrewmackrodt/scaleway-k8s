@@ -1,314 +1,69 @@
 ---
-- name: kubernetes multimasters
-  block:
+- set_fact: kube_arch="{{ ansible_architecture | replace('x86_64', 'amd64') | replace('arm', 'armhf') }}"
 
-  - name: Get the kernel revision
-    shell: "uname -r"
-    register: kernel
-    changed_when: False
-    check_mode: False
+# todo document what this is and use iptables module
+- name: Fixing nasty bug
+  shell: "iptables -P FORWARD ACCEPT"
+  ignore_errors: True
 
-  - name: Install kernel image
-    apt:
-      state: present
-      name: "{{ 'linux-image-' + kernel.stdout | regex_replace('^([0-9]+\\.[0-9]+\\.[0-9]+)-[0-9]+', '\\1*') }}"
-    register: result
-    retries: 3
-    until: result is success
+- include: modules.yml
 
-  - name: modprobe
-    modprobe:
-      name: "{{ item }}"
-      state: present
-    with_items:
-    - ip_vs
-    - nf_conntrack_ipv4
+- include: ssh-key.yml
+  when: "'masters' in group_names"
 
-  - name: /etc/modules dm_thin_pool
-    lineinfile:
-      path: /etc/modules
-      line: "{{ item }}"
-    with_items:
-      - ip_vs
-      - nf_conntrack_ipv4
+- include: keepalived.yml
+  when:
+    - "'masters' in group_names"
+    - groups.masters | length > 1
 
-  - name: Fixing nasty bug
-    shell: "iptables -P FORWARD ACCEPT"
-    ignore_errors: True
+# at this point everyone should be able to ping the api floating ip if multimaster
+# add a test here and don't continue until everyone does not ping the api ip
 
-  # ssh key sharing between first and other masters
-  - stat:
-      path: /root/.ssh/id_rsa
-    register: first_master_key_query
-    when:
-      - inventory_hostname == initial_master
+- include: packages.yml
 
-  - name: Creates an ssh key on first master
-    shell: ssh-keygen -b 2048 -t rsa -f /root/.ssh/id_rsa -q -N ""
-    args:
-      creates: /root/.ssh/id_rsa
-    when:
-      - inventory_hostname == initial_master
-      - first_master_key_query.stat.exists == False
+# generate a new token
+- name: Generating a kubeadm token
+  shell: "kubeadm token generate"
+  register: kubeadm_token
+  changed_when: False
+  check_mode: False
+  when: inventory_hostname == initial_master
 
-  - name: Register pub key on first master
-    shell: cat /root/.ssh/id_rsa.pub
-    register: first_master_key
-    when:
-      - inventory_hostname == initial_master
+# add masters
+- block:
+    - include: kubeadm-config.yml
 
-  - name: Propagate the key to other masters
-    authorized_key:
-      key: "{{ hostvars[initial_master]['first_master_key'].stdout }}"
-      user: root
-      state: present
-    when:
-      - "'masters' in group_names"
-      - inventory_hostname != initial_master
+    # docker-in-docker sometimes hangs pulling images so explicitly do it here
+    - include: docker-images.yml
 
-  - name: Creating /etc/keepalived on master nodes
-    file:
-      path: /etc/keepalived
-      state: directory
-    when: "'master in group_names'"
+    - include: kubeadm-master.yml
+      when: inventory_hostname == initial_master
 
-  - name: Templating /etc/keepalived/keepalived.conf
-    template:
-      src: keepalived.conf.j2
-      dest: /etc/keepalived/keepalived.conf
-    when: "'masters' in group_names"
+    # then we create the other masters
+    - include: kubeadm-multi.yml
+      when: inventory_hostname != initial_master
 
-  - name: Running keepalived container on masters nodes
-    docker_container:
-      name: keepalived_api
-      image: "chmod666/keepalived:latest"
-      state: started
-      detach: True
-      volumes:
-        - /etc/keepalived/keepalived.conf:/usr/local/etc/keepalived/keepalived.conf
-      capabilities:
-        - NET_ADMIN
-      network_mode: host
-      restart_policy: always
-    when: "'masters' in group_names"
+  when: "'masters' in group_names"
 
-  - name: Wait for keepalived to be alive :-)
-    shell: 'docker ps | grep chmod666/keepalived | grep "Up"'
-    register: result
-    until: result.stdout.find("chmod666/keepalived") != -1
-    retries: 18
-    delay: 10
-    # keepalived runs on masters nodes
-    when:
-      - "'masters' in group_names"
+- name: Wait for kubedns to be running
+  shell: "kubectl get pods --namespace=kube-system | grep kube-dns"
+  register: result
+  until: result.stdout.find("3/3") != -1
+  retries: 180
+  delay: 10
+  when: inventory_hostname == initial_master
 
-  # at this point everyone should be able to ping the api floating ip
-  # add a test here and don't continue until everyone does not ping the api ip
+# add non masters
+- include: kubeadm-worker.yml
+  when: "'masters' not in group_names"
 
-  - name: Adding Kubernetes official gpg key
-    apt_key:
-      url: "{{ kubernetes_apt_key }}"
-      state: present
+# remove this wait and had a test to check all nodes are ready
+- name: Wait for all nodes to be ready
+  shell: "kubectl get nodes {{ inventory_hostname }} | tail -n+2 | awk '{ print $2 }'"
+  register: result
+  until: result.stdout.find("Ready") == 0
+  retries: 36
+  delay: 10
+  delegate_to: "{{ initial_master }}"
 
-  - name: Setting Kubernetes repository depending Ubuntu version
-    set_fact:
-      kubernetes_repository: "deb http://apt.kubernetes.io/ kubernetes-{{ kubernetes_release }} {{ kubernetes_apt_channel }}"
-
-  - name: Checking Kubernetes repostiory
-    debug: var=kubernetes_repository
-
-  - name: Adding Kubernetes repository
-    apt_repository:
-      repo: "{{ kubernetes_repository }}"
-      state: present
-      filename: 'kubernetes'
-
-  - name: Installing kubernetes core components (kubectl, kubelet ...)
-    apt:
-      name: "{{ item }}"
-      state: latest
-    with_items:
-      - kubelet
-      - kubeadm
-      - kubectl
-      - kubernetes-cni
-    register: result
-    retries: 3
-    until: result is success
-
-  # generate a new token for the first masters
-  - name: Generating a kubeadm token
-    shell: "kubeadm token generate"
-    register: kubeadm_token
-    changed_when: False
-    check_mode: False
-    when: inventory_hostname == initial_master
-
-  # generating the kubeadm config file only on master nodes
-  - name: Creating kubeadm_config file
-    template:
-      src: kubeadm-config.j2
-      dest: /tmp/kubeadm_config
-    when:
-      - "'masters' in group_names"
-
-  # KUBELET_EXTRA_ARGS
-  - name: Additional configuration
-    template:
-      src: local-extras.conf.j2
-      dest: /etc/systemd/system/kubelet.service.d/90-local-extras.conf
-      mode: 0640
-    when:
-      - "'masters' in group_names"
-      - "kubelet_fail_swap_on == False"
-    notify:
-      - reload systemd
-      - restart kubelet
-
-  - meta: flush_handlers
-
-  # we get kubectl output to check if we have to add the node or not
-  # errors are ignore in case of the first initialization on the first master
-  - name: Getting kubectl output
-    shell: "kubectl get nodes"
-    register: kubectl_output
-    changed_when: False
-    check_mode: False
-    failed_when: kubectl_output.rc != 0 and not 'did you specify the right host' in kubectl_output.stderr
-    when: inventory_hostname == initial_master
-
-  - name: Kubeadm init on first master
-    shell: |
-      kubeadm init \
-        --config /tmp/kubeadm_config
-        {%- if kubeadm_ignore_preflight_errors | length > 0 %} \
-          --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }}
-        {% endif %}
-    register: kubeadm_output
-    when:
-      # only run this command if this is the fist master
-      # and this one hasn't be initialized
-      - inventory_hostname == initial_master
-      - ansible_hostname not in kubectl_output.stdout
-
-  - name: Kubedadm output
-    debug: var=kubeadm_output
-    when: inventory_hostname == initial_master
-
-  - name: Creating .kube file in $HOME
-    # this will be needed on all masters nodes
-    file:
-      path: ~/.kube
-      state: directory
-    when:
-      - "'masters' in group_names"
-
-  - block:
-      - name: Copying /etc/kubernetes/admin.conf to ~/.kube/config
-        copy:
-          src: /etc/kubernetes/admin.conf
-          dest: ~/.kube/config
-          remote_src: yes
-
-      - name: Running first kubectl
-        shell: "kubectl get nodes"
-        register: first_kubectl
-
-      - name: Checking kubectl
-        debug: var=first_kubectl
-
-      # flannel deployment
-      - name: Checking if flannel deploy exists
-        shell: "kubectl get deploy --namespace=kube-system flannel"
-        ignore_errors: True
-        register: cni_deployment
-
-      - name: Configure cni
-        shell: "kubectl apply -f {{ cni_manifest }}"
-        when: cni_deployment.rc != 0
-
-      # at this point ensure that kubedns is running before continue
-      - name: Be sure kubedns is running ok
-        shell: "kubectl get pods --namespace=kube-system | grep kube-dns"
-        register: result
-        until: result.stdout.find("3/3") != -1
-        retries: 18
-        delay: 10
-
-    when: inventory_hostname == initial_master
-
-  # then we create the other masters
-  - block:
-      - name: Creating /etc/kubernetes to other masters
-        file:
-          path: /etc/kubernetes
-          state: directory
-
-      - name: Distribute /etc/kubernetes/pki to other masters
-        synchronize:
-          src: /etc/kubernetes/pki/
-          dest: /etc/kubernetes/pki
-        when:
-          # distribute the pki files on masters that are not the first master
-          - "'masters' in  group_names"
-        delegate_to: "{{ initial_master }}"
-
-      - name: Initializing other masters
-        shell: |
-          kubeadm init \
-            --config /tmp/kubeadm_config
-            {%- if kubeadm_ignore_preflight_errors | length > 0 %} \
-              --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }}
-            {% endif %}
-        when:
-          # this is the master host
-          - "'masters' in group_names"
-          # master hasn't be already initialized
-          - ansible_hostname not in hostvars[initial_master]['kubectl_output'].stdout
-
-      # fixing kubectl
-      - name: kubectl config
-        copy:
-          src: /etc/kubernetes/kubelet.conf
-          dest: /root/.kube/config
-          remote_src: True
-        when:
-          - "'masters' in group_names"
-
-    when: inventory_hostname != initial_master
-
-  # add non masters
-  - block:
-      - name: Checking if kube-proxy is Running
-        shell: "ps -ef | grep [k]ube-proxy"
-        register: kube_proxy_running
-        ignore_errors: True
-
-      - name: Joining cluster on other nodes
-        shell: |
-          kubeadm join \
-            --token={{ hostvars[initial_master]['kubeadm_token'].stdout }} \
-            --discovery-token-unsafe-skip-ca-verification \
-            {%- if kubeadm_ignore_preflight_errors | length > 0 %}
-              --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }} \
-            {% endif %}
-            {{ api_floating_ip }}:{{ api_floating_port }}
-        register: kubedadm_output
-        when: "'/usr/local/bin/kube-proxy' not in kube_proxy_running.stdout"
-
-      - name: Kubedadm output
-        debug: var="{{ kubeadm_output }}"
-        when: "'/usr/local/bin/kube-proxy' not in kube_proxy_running.stdout"
-
-    when: "'masters' not in group_names"
-
-  # remove this wait and had a test to check all nodes are ready
-  - name: Wait for all nodes to be ready
-    shell: "kubectl get nodes"
-    register: result
-    until: result.stdout.find("NotReady") == -1
-    retries: 200
-    delay: 10
-    when: inventory_hostname == initial_master
-
-  when: groups.masters | length > 1
+- debug: var=result

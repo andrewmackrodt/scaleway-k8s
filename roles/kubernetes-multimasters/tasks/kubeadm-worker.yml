@@ -1,0 +1,31 @@
+---
+- name: Checking if kube-proxy is Running
+  shell: "ps -ef | grep [k]ube-proxy"
+  register: kube_proxy_running
+  ignore_errors: True
+
+- block:
+    - name: Joining cluster on other nodes
+      shell: |
+        kubeadm join \
+          --token="{{ hostvars[initial_master]['kubeadm_token'].stdout }}" \
+          {{ item.ipv4 }}:{{ item.port }} \
+          {%- if kubeadm_ignore_preflight_errors | length > 0 %}
+            --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }} \
+          {% endif %}
+          --discovery-token-unsafe-skip-ca-verification
+      register: kubeadm_output
+      failed_when: "'This node has joined the cluster' not in kubeadm_output.stdout"
+      when: item.when | bool == True
+      with_items:
+        - ipv4: "{{ api_floating_ip }}"
+          port: "{{ api_floating_port }}"
+          when: "{{ groups.masters | length > 1 }}"
+        - ipv4: "{{ hostvars[initial_master].vpn_ip  }}"
+          port: 6443
+          when: "{{ groups.masters | length == 1 }}"
+
+    - name: Kubeadm output
+      debug: var=kubeadm_output
+
+  when: "'/usr/local/bin/kube-proxy' not in kube_proxy_running.stdout"

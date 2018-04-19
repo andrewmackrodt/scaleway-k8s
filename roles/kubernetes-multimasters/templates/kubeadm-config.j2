@@ -1,7 +1,7 @@
 apiVersion: kubeadm.k8s.io/v1alpha1
 kind: MasterConfiguration
 api:
-  advertiseAddress: {{ api_floating_ip }}
+  advertiseAddress: {{ api_floating_ip if groups.masters | length > 1 else hostvars[initial_master].vpn_ip }}
 etcd:
   endpoints:
 {% for host in groups['masters'] %}

@@ -1,0 +1,36 @@
+---
+# flannel deployment
+- name: Checking if flannel exists
+  shell: "ip link | awk '$2 ~ /^(flannel|cni)/ { print $0 }' | wc -l | awk '{ print $1 }'"
+  register: cni_deployment
+  changed_when: False
+  check_mode: False
+
+- block:
+    - name: Determine physical interface to use with cni
+      shell: "ip route get 169.254.42.42 | grep 'eth' | awk '$1 == \"169.254.42.42\" { print $3 }'"
+      register: cni_interface
+      changed_when: False
+      check_mode: False
+      failed_when: "'eth' not in cni_interface.stdout"
+
+    - name: Create directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: 0755
+      with_items:
+        - /etc/kube-flannel
+        - /etc/cni/net.d
+        - /opt/cni/bin
+
+    - name: Configure cni
+      shell: "kubectl apply -f {{ cni_manifest }}"
+      register: cni_output
+      # flannel has trouble unless we restart the kubelet service
+      # we'll flush_handlers later
+      notify: restart kubelet
+
+    - debug: var="cni_output"
+
+  when: "cni_deployment.stdout != '2'"

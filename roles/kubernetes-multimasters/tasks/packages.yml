@@ -1,0 +1,24 @@
+---
+- name: Adding Kubernetes official gpg key
+  apt_key:
+    url: "{{ kubernetes_apt_key }}"
+    state: present
+
+- name: Adding Kubernetes repository
+  apt_repository:
+    repo: "deb http://apt.kubernetes.io/ kubernetes-{{ kubernetes_release }} {{ kubernetes_apt_channel }}"
+    state: present
+    filename: 'kubernetes'
+
+- name: Installing kubernetes core components (kubectl, kubelet ...)
+  apt:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - kubelet
+    - kubeadm
+    - kubectl
+    - kubernetes-cni
+  register: result
+  retries: 3
+  until: result is success

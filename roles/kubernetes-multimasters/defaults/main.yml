@@ -12,6 +12,7 @@ kubeadm_ignore_preflight_errors: ""
 kubelet_fail_swap_on: True
 
 # Flannel
+cni_version: v0.10.0
 # these will determine the number of pods you can run
 # cirdr should be at least /16 https://kubernetes.io/docs/admin/kubeadm/
 cni_manifest: https://raw.githubusercontent.com/coreos/flannel/v0.10.0/Documentation/kube-flannel.yml
