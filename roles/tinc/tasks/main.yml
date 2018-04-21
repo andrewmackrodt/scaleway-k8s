@@ -77,16 +77,13 @@
   notify:
     - restart tinc
 
-# in case of multimaster we need to add a subnet line on masters
+# in case of multimaster we need to add a subnet line
 - name: ensure that keepalived ip is properly set in tinc host file on masters
   lineinfile:
     dest: /etc/tinc/{{ netname }}/hosts/{{ inventory_hostname }}
     line: "Subnet = {{ api_floating_ip }}/{{ vpn_subnet_cidr_netmask }}"
     create: yes
-  # do this only if we have more than one master
-  when:
-    - "'masters' in group_names"
-    - groups.masters|length > 1
+  when: groups.masters | length > 1
 
 - name: check whether /etc/tinc/netname/hosts/inventory_hostname contains "-----END RSA PUBLIC KEY-----"
   command: awk '/^-----END RSA PUBLIC KEY-----$/'  /etc/tinc/{{ netname }}/hosts/{{ inventory_hostname }}
