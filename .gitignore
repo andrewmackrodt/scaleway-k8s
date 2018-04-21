@@ -1,5 +1,7 @@
 *.retry
 fetch
+inventories/*.yml
+!inventories/*.*.yml
 terraform/*.tfstate
 terraform/*.tfstate.backup
 terraform/.terraform/
