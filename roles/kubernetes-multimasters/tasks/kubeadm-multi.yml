@@ -5,6 +5,8 @@
     dest: /etc/kubernetes/pki/
     recursive: True
   delegate_to: "{{ initial_master }}"
+  # forward ssh agent by preserving environment variables with sudo
+  become_flags: "-E"
 
 - block:
     - name: Initializing other masters

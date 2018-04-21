@@ -8,9 +8,6 @@
 
 - include: modules.yml
 
-- include: ssh-key.yml
-  when: "'masters' in group_names"
-
 - include: keepalived.yml
   when:
     - "'masters' in group_names"
