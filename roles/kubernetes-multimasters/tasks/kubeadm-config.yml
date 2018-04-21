@@ -15,7 +15,6 @@
     dest: /etc/systemd/system/kubelet.service.d/90-local-extras.conf
     mode: 0640
   when:
-    - "'masters' in group_names"
     - "kubelet_fail_swap_on == False"
   notify:
     - reload systemd

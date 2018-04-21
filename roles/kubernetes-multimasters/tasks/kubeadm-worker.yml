@@ -8,7 +8,7 @@
     - name: Joining cluster on other nodes
       shell: |
         kubeadm join \
-          --token="{{ hostvars[initial_master]['kubeadm_token'].stdout }}" \
+          --token="{{ hostvars[initial_master].kubeadm_token }}" \
           {{ item.ipv4 }}:{{ item.port }} \
           {%- if kubeadm_ignore_preflight_errors | length > 0 %}
             --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }} \

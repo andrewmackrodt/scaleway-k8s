@@ -18,18 +18,13 @@
 
 - include: packages.yml
 
-# generate a new token
-- name: Generating a kubeadm token
-  shell: "kubeadm token generate"
-  register: kubeadm_token
-  changed_when: False
-  check_mode: False
+- include: kubeadm-token.yml
   when: inventory_hostname == initial_master
+
+- include: kubeadm-config.yml
 
 # add masters
 - block:
-    - include: kubeadm-config.yml
-
     # docker-in-docker sometimes hangs pulling images so explicitly do it here
     - include: docker-images.yml
 
@@ -50,13 +45,16 @@
   delay: 10
   when: inventory_hostname == initial_master
 
+- include: kubeadm-token.yml
+  when: inventory_hostname == initial_master
+
 # add non masters
 - include: kubeadm-worker.yml
   when: "'masters' not in group_names"
 
 # remove this wait and had a test to check all nodes are ready
 - name: Wait for all nodes to be ready
-  shell: "kubectl get nodes {{ inventory_hostname }} | tail -n+2 | awk '{ print $2 }'"
+  shell: "kubectl get nodes {{ ansible_hostname }} | tail -n+2 | awk '{ print $2 }'"
   register: result
   until: result.stdout.find("Ready") == 0
   retries: 36
