@@ -56,11 +56,15 @@ vpn_id=1
 cat <<EOF | tee inventories/docker.yml
 all:
   vars:
+    basic_auth_user: admin
+    basic_auth_password: admin
     kubeadm_ignore_preflight_errors: all
     kubelet_fail_swap_on: False
-    tinc_ignore_scaleway_dns: True
     proxy_private_interface: eth1
     proxy_test_timeout: $PROXY_TEST_TIMEOUT
+    # scaleway_ipaddr: x.x.x.x
+    # scaleway_reverse_ipaddr: domain.tld
+    tinc_ignore_scaleway_dns: True
 
 proxy:
   hosts:
