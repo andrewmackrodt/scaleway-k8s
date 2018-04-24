@@ -6,7 +6,7 @@ metadata:
   annotations:
     # enable kube-lego for this ingress
     kubernetes.io/tls-acme: "true"
-    {% if basic_auth == True %}
+    {% if basic_auth_user | length > 0 %}
 ingress.kubernetes.io/auth-type: basic
     # name of the secret that contains the user/password definitions
     ingress.kubernetes.io/auth-secret: dashboard-basic-auth
@@ -18,10 +18,10 @@ spec:
   # this enables tls for the specified domain names
   tls:
   - hosts:
-    - k8sdashboard.{{ domain_name }}
+    - {{ dashboard_subdomain }}.{{ scaleway_reverse_ipaddr }}
     secretName: dashboard-tls
   rules:
-  - host: k8sdashboard.{{ domain_name }}
+  - host: {{ dashboard_subdomain }}.{{ scaleway_reverse_ipaddr }}
     http:
       paths:
       - path: /

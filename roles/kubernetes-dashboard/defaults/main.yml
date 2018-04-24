@@ -1,7 +1,15 @@
 ---
-domain_name: voight-kampff.org
+# set basic_auth_user as non-empty to enforce basic auth
+basic_auth_user: ""
+basic_auth_password: ""
+
+# e.g. the fqdn would be k8s.yourdomain.tld if
+#   dashboard_subdomain=k8s
+#   scaleway_reverse_ipaddr=yourdomain.tld
+dashboard_subdomain: k8s
+
 dashboard_image: gcr.io/google_containers/kubernetes-dashboard-amd64
-dashboard_version: v1.8.1
+dashboard_version: v1.8.3
+
 init_dashboard_image: gcr.io/google_containers/kubernetes-dashboard-init-amd64
 init_dashboard_version: v1.0.1
-basic_auth: True
