@@ -1,4 +1,8 @@
 ---
 - import_playbook: proxy.yml
 
+- hosts: proxy:masters:workers
+  roles:
+    - iptables
+
 - import_playbook: docker.yml

@@ -1,0 +1,34 @@
+---
+- name: Save iptables (excl. kubernetes)
+  shell:
+    cmd: |
+      bash -s <<'EOF'
+      if [ ! -f /etc/iptables/rules.v4 ]; then
+        mkdir -p /etc/iptables
+        touch /etc/iptables/rules.v4
+      fi
+
+      iptables-save | grep -v 'KUBE-' > /tmp/rules.v4
+
+      OLD_CHECKSUM=$(sed -E 's/^# (Completed|Generated).+/# checksum ignore/' /etc/iptables/rules.v4 | awk '{ print $1 }')
+      NEW_CHECKSUM=$(sed -E 's/^# (Completed|Generated).+/# checksum ignore/' /tmp/rules.v4 | awk '{ print $1 }')
+
+      if [ "$OLD_CHECKSUM" != "$NEW_CHECKSUM" ]; then
+        cp --no-preserve=mode,ownership /tmp/rules.v4 /etc/iptables/rules.v4
+        echo "changed"
+      fi
+
+      rm /tmp/rules.v4
+      EOF
+  register: save_result
+  changed_when: save_result.stdout.find("changed") != -1
+
+# iptables-save is already present so we can install the package after existing
+# rules have been observed to get lost unless the order is this way
+- name: install iptables-persistent
+  apt:
+    name: iptables-persistent
+    state: latest
+  register: result
+  retries: 3
+  until: result is success

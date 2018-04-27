@@ -47,12 +47,6 @@
     jump: MASQUERADE
   register: iptables_result
 
-- name: Save iptables
-  shell: |
-    mkdir -p /etc/iptables
-    iptables-save > /etc/iptables/rules.v4
-  when: iptables_result.changed
-
 - name: Set up SSH tunnels
   include: ssh-up.yml
   when: hostvars.values() | selectattr('proxy_inet', '==', False) | list | length != 0
