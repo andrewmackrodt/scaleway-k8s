@@ -1,4 +1,7 @@
 # Deploying ingress controller
+- hosts: proxy:masters
+  gather_facts: True
+
 - hosts: masters
   roles:
     - ingress

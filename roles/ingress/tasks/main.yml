@@ -9,12 +9,12 @@
   when: inventory_hostname == initial_master
 
 - name: nginx_ingress_controller | Labelling proxy nodes with role=ingress_controller
-  command: "kubectl label node {{ item }} role=ingress-controller"
+  command: "kubectl label node {{ hostvars[item].ansible_hostname }} role=ingress-controller"
   with_items:
     - "{{ groups['proxy'] }}"
   when:
     - inventory_hostname == initial_master
-    - '"{{ item }}" not in nodes.stdout'
+    - hostvars[item].ansible_hostname not in nodes.stdout
 
 - name: nginx_ingress_controller | Templating manifests
   template:
