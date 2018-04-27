@@ -1,11 +1,6 @@
 ---
 - set_fact: kube_arch="{{ ansible_architecture | replace('x86_64', 'amd64') | replace('arm', 'armhf') }}"
 
-# todo document what this is and use iptables module
-- name: Fixing nasty bug
-  shell: "iptables -P FORWARD ACCEPT"
-  ignore_errors: True
-
 - include: modules.yml
 
 - include: keepalived.yml
