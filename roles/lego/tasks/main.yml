@@ -9,7 +9,7 @@
     - lego-clusterole.yml.j2
     - lego-configmap.yml.j2
     - lego-controller.yml.j2
-  when: inventory_hostname == groups["masters"][0]
+  when: inventory_hostname == initial_master
 
 - name: kube_lego | Deploying kube-lego 
   kube:
@@ -23,7 +23,7 @@
     - { 'name': 'kube-lego', 'type': 'clusterrole', 'file': '/tmp/lego-clusterole.yml' }
     - { 'name': 'kube-lego', 'type': 'configmap', 'file': '/tmp/lego-configmap.yml' }
     - { 'name': 'kube-lego', 'type': 'deploy', 'file': '/tmp/lego-controller.yml' }
-  when: inventory_hostname == groups["masters"][0]
+  when: inventory_hostname == initial_master
 
 - name: kube_lego | Removing manifest
   file:
@@ -36,5 +36,5 @@
     - lego-clusterole.yml
     - lego-configmap.yml
     - lego-controller.yml
-  when: inventory_hostname == groups["masters"][0]
+  when: inventory_hostname == initial_master
 

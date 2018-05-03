@@ -1,0 +1,69 @@
+global_defs {
+{% if ansible_tun0 is defined %}
+  default_interface tun0
+{% else %}
+  default_interface eth0
+{% endif %}
+}
+
+vrrp_instance VI_1 {
+{% if ansible_tun0 is defined %}
+  interface tun0
+{% else %}
+  interface eth0
+{% endif %}
+
+  track_interface {
+{% if ansible_tun0 is defined %}
+    tun0
+{% else %}
+    eth0
+{% endif %}
+  }
+
+{% if inventory_hostname == initial_master %}
+  state MASTER
+  priority 100
+{% else %}
+  state BACKUP
+  priority 50
+{% endif %}
+  virtual_router_id {{ router_id }}
+  nopreempt
+
+  unicast_peer {
+{% for host in groups['masters'] %}
+    {{ hostvars[host]['vpn_ip'] }}
+{% endfor %}
+  }
+
+  virtual_ipaddress {
+    {{ api_floating_ip }}/{{ api_floating_mask }}
+  }
+
+  authentication {
+    auth_type PASS
+    auth_pass d0cker
+  }
+
+  notify "/container/service/keepalived/assets/notify.sh"
+}
+
+virtual_server {{ api_floating_ip }} {{ api_floating_port }} {
+    delay_loop 10
+    protocol TCP
+    lb_algo rr
+    # Use direct routing
+    lb_kind DR
+    persistence_timeout 7200
+
+{% for host in groups['masters'] %}
+    real_server {{ hostvars[host]['vpn_ip'] }} {{ api_floating_port }} {
+        weight 1
+        TCP_CHECK {
+          connect_timeout 5
+          connect_port 6443
+        }
+    }
+{% endfor %}
+}

@@ -6,6 +6,9 @@
       apt:
         name: python-docker
         state: latest
+      register: result
+      retries: 3
+      until: result is success
 
     - name: Running etcd container on masters nodes
       docker_container:

@@ -1,0 +1,30 @@
+---
+- name: Creating /etc/keepalived on master nodes
+  file:
+    path: /etc/keepalived
+    state: directory
+
+- name: Templating /etc/keepalived/keepalived.conf
+  template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+
+- name: Running keepalived container on masters nodes
+  docker_container:
+    name: keepalived_api
+    image: "chmod666/keepalived:latest"
+    state: started
+    detach: True
+    volumes:
+      - /etc/keepalived/keepalived.conf:/usr/local/etc/keepalived/keepalived.conf
+    capabilities:
+      - NET_ADMIN
+    network_mode: host
+    restart_policy: always
+
+- name: Wait for keepalived to be alive :-)
+  shell: 'docker ps | grep chmod666/keepalived | grep "Up"'
+  register: result
+  until: result.stdout.find("chmod666/keepalived") != -1
+  retries: 18
+  delay: 10

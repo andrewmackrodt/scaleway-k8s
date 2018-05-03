@@ -1,38 +1,38 @@
 ---
-- name: Installing python-passlib
-  apt:
-    name: python-passlib
-    state: latest
-  when: basic_auth == True
+- block:
+  - name: Installing python-passlib
+    apt:
+      name: python-passlib
+      state: latest
+    register: result
+    retries: 3
+    until: result is success
 
-- name: Creating htpasswd file if k8s has basic auth
-  htpasswd:
-    path: /tmp/auth
-    name: "{{ basic_auth_user }}"
-    password: "{{ basic_auth_password }}"
-  when:
-    - inventory_hostname == groups["masters"][0]
-    - basic_auth == True
+  - name: Creating htpasswd file if k8s has basic auth
+    htpasswd:
+      path: /tmp/auth
+      name: "{{ basic_auth_user }}"
+      password: "{{ basic_auth_password }}"
+    when: inventory_hostname == initial_master
 
-- name: Getting secrets
-  command: kubectl get secrets --namespace=kube-system
-  register: secrets
-  when:
-    - inventory_hostname == groups["masters"][0]
-    - basic_auth == True
+  - name: Getting secrets
+    command: kubectl get secrets --namespace=kube-system
+    register: secrets
+    when: inventory_hostname == initial_master
 
-- name: Creating secret
-  command: kubectl create secret generic dashboard-basic-auth --namespace=kube-system --from-file=/tmp/auth
-  when:
-    - inventory_hostname == groups["masters"][0]
-    - '"dashboard-basic-auth" not in secrets.stdout'
-    - basic_auth == True
+  - name: Creating secret
+    command: kubectl create secret generic dashboard-basic-auth --namespace=kube-system --from-file=/tmp/auth
+    when:
+      - inventory_hostname == initial_master
+      - '"dashboard-basic-auth" not in secrets.stdout'
 
-- name: Deleting basic_auth file
-  file:
-    path: /tmp/auth
-    state: absent
-  when: inventory_hostname == groups["masters"][0]
+  - name: Deleting basic_auth file
+    file:
+      path: /tmp/auth
+      state: absent
+    when: inventory_hostname == initial_master
+
+  when: basic_auth_user | length > 0
 
 - name: Templating manifests
   template: 
@@ -41,7 +41,7 @@
   with_items:
     - dashboard-ingress.yml.j2
     - dashboard-deployment.yml.j2
-  when: inventory_hostname == groups["masters"][0]
+  when: inventory_hostname == initial_master
 
 - name: Copying manifests files
   copy:
@@ -60,7 +60,7 @@
     - heapster-sa.yml
     - heapster-service.yml
     - heapster-deployment.yml
-  when: inventory_hostname == groups["masters"][0]
+  when: inventory_hostname == initial_master
 
 - name: Deploying kubernetes-dashboard 
   kube:
@@ -82,7 +82,7 @@
     - { 'name': 'heapster', 'type': 'role', 'file': '/tmp/heapster-role.yml' }
     - { 'name': 'heapster', 'type': 'service', 'file': '/tmp/heapster-service.yml' }
     - { 'name': 'heapster', 'type': 'deployment', 'file': '/tmp/heapster-deployment.yml' }
-  when: inventory_hostname == groups["masters"][0]
+  when: inventory_hostname == initial_master
 
 - name: Removing manifest
   file:
@@ -103,4 +103,4 @@
     - heapster-sa.yml
     - heapster-service.yml
     - heapster-deployment.yml
-  when: inventory_hostname == groups["masters"][0]
+  when: inventory_hostname == initial_master

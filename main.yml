@@ -1,0 +1,14 @@
+---
+- import_playbook: beforek8s.yml
+
+- import_playbook: k8s.yml
+
+# Deploying ingress controller, lego, dashboard, and helm-monocular
+- hosts: masters:proxy
+  roles:
+    - ingress
+    - lego
+    - kubernetes-dashboard
+    #- helm-monocular
+
+- import_playbook: gluster.yml

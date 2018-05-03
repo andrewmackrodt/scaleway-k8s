@@ -1,4 +1,0 @@
-# Deploying ingress controller
-- hosts: proxy
-  roles:
-    - tinyproxy

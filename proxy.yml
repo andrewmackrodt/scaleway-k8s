@@ -1,0 +1,4 @@
+---
+- hosts: proxy:masters:workers
+  roles:
+    - proxy

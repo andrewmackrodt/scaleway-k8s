@@ -1,0 +1,30 @@
+---
+- name: Get the kernel revision
+  shell: "uname -r"
+  register: kernel
+  changed_when: False
+  check_mode: False
+
+# allow failure as the package may not exist
+- name: Try install linux-image
+  apt:
+    state: present
+    name: "{{ 'linux-image-' + kernel.stdout }}"
+  register: result
+  failed_when: False
+
+- name: modprobe
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - ip_vs
+  - nf_conntrack_ipv4
+
+- name: /etc/modules
+  lineinfile:
+    path: /etc/modules
+    line: "{{ item }}"
+  with_items:
+    - ip_vs
+    - nf_conntrack_ipv4

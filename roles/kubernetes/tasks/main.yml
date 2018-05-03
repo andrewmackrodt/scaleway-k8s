@@ -1,149 +1,59 @@
 ---
-- name: Kubernetes installation
-  block:
+- set_fact: kube_arch="{{ ansible_architecture | replace('x86_64', 'amd64') | replace('arm', 'armhf') }}"
 
-  - name: Fixing nasty bug
-    shell: "iptables -P FORWARD ACCEPT"
-    ignore_errors: True
+- include: modules.yml
 
-  - name: Adding Kubernetes official gpg key (without proxy)
-    apt_key:
-      url: "{{ kubernetes_apt_key }}"
-      state: present
-    when: "'proxy' in group_names"
-
-  - name: Adding Kubernetes official gpg key (with proxy)
-    apt_key:
-      url: "{{ kubernetes_apt_key }}"
-      state: present
-    environment:
-      https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-    when: "'workers' in group_names or 'masters' in group_names"
-
-  - name: Setting Kubernetes repository depending Ubuntu version
-    set_fact:
-      kubernetes_repository: "deb http://apt.kubernetes.io/ kubernetes-{{ kubernetes_release }} {{ kubernetes_apt_channel }}"
-
-  - name: Checking Kubernetes repostiory
-    debug: var=kubernetes_repository
-
-  - name: Adding Kubernetes repository
-    apt_repository:
-      repo: "{{ kubernetes_repository }}"
-      state: present
-      filename: 'kubernetes'
-
-  - name: Installing kubernetes core components (kubectl, kubelet ...)
-    apt:
-      name: "{{ item }}"
-      state: latest
-    with_items:
-      - kubelet
-      - kubeadm
-      - kubectl
-      - kubernetes-cni
-
-  - name: Checking if first master was initialized
-    stat:
-      path: /etc/kubernetes
-    register: kubernetes_directory
-    when: inventory_hostname == groups["masters"][0]
-
-  - name: Kubeadm init on first master
-    shell: "kubeadm init --apiserver-advertise-address={{ vpn_ip }} --pod-network-cidr={{ flannel_cidr }} --kubernetes-version {{ kubernetes_version }}"
-    when:
-      - inventory_hostname == groups["masters"][0]
-
-  - name: Creating .kube file in $HOME
-    file:
-      path: ~/.kube
-      state: directory
-    when:
-      - inventory_hostname == groups["masters"][0]
-
-  - name: Copying /etc/kubernetes/admin.conf to ~/.kube/config
-    copy:
-      src: /etc/kubernetes/admin.conf
-      dest: ~/.kube/config
-      remote_src: yes
-    when:
-      - inventory_hostname == groups["masters"][0]
-
-  - name: Running first kubectl
-    shell: "kubectl get nodes"
-    register: first_kubectl
-    when:
-      - inventory_hostname == groups["masters"][0]
-
-  - name: Checking kubectl
-    debug: var=first_kubectl
-    when:
-      - inventory_hostname == groups["masters"][0]
-
-  # flannel deployement
-  - name: Getting calico manifest
-    get_url:
-      url: "{{ flannel_manifest }}"
-      dest: /tmp/flannel.yml
-    environment:
-      # calico manifest is downloaded via http
-      http_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-      https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-    when:
-      - inventory_hostname == groups["masters"][0]
-
-  - name: Checking if flannel deploy exists
-    shell: "kubectl get deploy --namespace=kube-system  flannel"
-    ignore_errors: True
-    register: calico_deployment
-    when: inventory_hostname == groups["masters"][0]
-
-  - name: Creating flannel
-    shell: "kubectl create -f /tmp/flannel.yml"
-    when:
-      - inventory_hostname == groups["masters"][0]
-
-  #- name: Getting calico manifest
-  #  get_url:
-  #    url: "{{ calico_manifest }}"
-  #    dest: /tmp/calico.yml
-  #  environment:
-  #    # calico manifest is downloaded via http
-  #    http_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-  #    https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-  #  when:
-  #    - inventory_hostname == groups["masters"][0]
-
-  #- name: Checking if calico deploy exists
-  #  shell: "kubectl get deploy --namespace=kube-system  calico-policy-controller"
-  #  ignore_errors: True
-  #  register: calico_deployment
-  #  when: inventory_hostname == groups["masters"][0]
-
-  #- name: Creating calico
-  #  shell: "kubectl create -f /tmp/calico.yml"
-  #  when:
-  #    - inventory_hostname == groups["masters"][0]
-  #    - calico_deployment.rc != 0
-
-  - name: Getting token
-    shell: "kubeadm token list | tail -f | awk '{print $1}'"
-    register: token
-    when:
-      - inventory_hostname == groups["masters"][0]
-
-  - name: Checking if kube-proxy is Running
-    shell: "ps -ef | grep [k]ube-proxy"
-    register: kube_proxy_running
-    ignore_errors: True
-    when: inventory_hostname != groups["masters"]
-
-  - name: Joining cluster on other nodes
-    shell: "kubeadm join --token={{ hostvars[groups['masters'][0]]['token'].stdout_lines[1] }} {{ hostvars[groups['masters'][0]]['vpn_ip'] }}:{{ kubernetes_port }}"
-    when:
-     - inventory_hostname != groups["masters"][0]
-     - "'/usr/local/bin/kube-proxy' not in kube_proxy_running.stdout"
-
+- include: keepalived.yml
   when:
-    - ansible_distribution == "Ubuntu"
-    - groups['masters']|length == 1
+    - "'masters' in group_names"
+    - groups.masters | length > 1
+
+# at this point everyone should be able to ping the api floating ip if multimaster
+# add a test here and don't continue until everyone does not ping the api ip
+
+- include: packages.yml
+
+- include: kubeadm-token.yml
+  when: inventory_hostname == initial_master
+
+- include: kubeadm-config.yml
+
+# add masters
+- block:
+    # docker-in-docker sometimes hangs pulling images so explicitly do it here
+    - include: docker-images.yml
+
+    - include: kubeadm-master.yml
+      when: inventory_hostname == initial_master
+
+    # then we create the other masters
+    - include: kubeadm-multi.yml
+      when: inventory_hostname != initial_master
+
+  when: "'masters' in group_names"
+
+- name: Wait for kubedns to be running
+  shell: "kubectl get pods --namespace=kube-system | grep kube-dns"
+  register: result
+  until: result.stdout.find("3/3") != -1
+  retries: 180
+  delay: 10
+  when: inventory_hostname == initial_master
+
+- include: kubeadm-token.yml
+  when: inventory_hostname == initial_master
+
+# add non masters
+- include: kubeadm-worker.yml
+  when: "'masters' not in group_names"
+
+# remove this wait and had a test to check all nodes are ready
+- name: Wait for all nodes to be ready
+  shell: "kubectl get nodes {{ ansible_hostname }} | tail -n+2 | awk '{ print $2 }'"
+  register: result
+  until: result.stdout.find("Ready") == 0
+  retries: 36
+  delay: 10
+  delegate_to: "{{ initial_master }}"
+
+- debug: var=result

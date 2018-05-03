@@ -1,0 +1,58 @@
+---
+# we get kubectl output to check if we have to add the node or not
+# errors are ignore in case of the first initialization on the first master
+- name: Getting kubectl output
+  shell: "kubectl get nodes"
+  register: kubectl_output
+  changed_when: False
+  check_mode: False
+  failed_when: kubectl_output.rc != 0 and not 'did you specify the right host' in kubectl_output.stderr
+
+- block:
+    - name: Kubeadm init on first master in multimaster cluster
+      shell: |
+        kubeadm init \
+          --config /tmp/kubeadm_config
+          {%- if kubeadm_ignore_preflight_errors | length > 0 %} \
+            --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }}
+          {% endif %}
+      register: kubeadm_output
+      failed_when: "'Your Kubernetes master has initialized successfully' not in kubeadm_output.stdout"
+      when: groups.masters | length > 1
+
+    - name: Kubeadm init on sole master
+      shell: |
+        kubeadm init \
+          --apiserver-advertise-address={{ vpn_ip }} \
+          --pod-network-cidr={{ pod_subnet }} \
+          --kubernetes-version {{ kubernetes_version }}
+          {%- if kubeadm_ignore_preflight_errors | length > 0 %} \
+            --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }}
+          {% endif %}
+      # flannel has trouble unless we restart the kubelet service
+      notify: restart kubelet
+      when:
+        - groups.masters | length == 1
+        - inventory_hostname == initial_master
+
+    - name: Kubeadm output
+      debug: var=kubeadm_output
+
+  when: ansible_hostname not in kubectl_output.stdout
+
+- name: Copying /etc/kubernetes/admin.conf to ~/.kube/config
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: ~/.kube/config
+    remote_src: yes
+
+- include: cni.yml
+
+- name: Wait for master to be ready
+  shell: "kubectl get nodes $(hostname) | tail -n+2 | awk '{ print $2 }'"
+  register: result
+  until: result.stdout.find("Ready") == 0
+  retries: 36
+  delay: 10
+
+- meta: flush_handlers

@@ -1,14 +1,10 @@
 ---
+api_floating_ip: 192.168.66.253
 netname: meshvpn
-# we assume servers have online one interface
-physical_ip: "{{ ansible_eth0.ipv4.address }}"
-
+scw_private_domain: priv.cloud.scaleway.com
+tinc_primary_router: proxy0
+tinc_route_default_ip: 192.168.66.1
+tinc_route_get_ip: 169.254.42.42
 vpn_interface: tun0
-
 vpn_netmask: 255.255.255.0
 vpn_subnet_cidr_netmask: 32
-
-# scw-metadata
-scw_private_domain: priv.cloud.scaleway.com
-
-api_floating_ip: 192.168.66.253

@@ -1,8 +1,0 @@
----
-# Setting up all hosts
-- hosts: proxy:masters:workers
-  tasks: [ ]
-
-- hosts: proxy:masters:workers
-  roles:
-    - kubernetes-dashboard

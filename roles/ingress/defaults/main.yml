@@ -1,10 +1,10 @@
 replicas_default_backend: 1
 image_default_backend: gcr.io/google_containers/defaultbackend
-version_default_backend: 1.0
+version_default_backend: 1.4
 nginx_ingress_controller_image: gcr.io/google_containers/nginx-ingress-controller
-nginx_ingress_controller_version: 0.9.0
+nginx_ingress_controller_version: 0.9.0-beta.15
 
 scaleway_servername1: proxy0
 scaleway_servername2: proxy1
-scaleway_ipaddr: 51.15.214.245
-scaleway_reverse_ipaddr: voight-kampff.org
+scaleway_ipaddr: "" # set this in the inventory file
+scaleway_reverse_ipaddr: "" # set this in the inventory file

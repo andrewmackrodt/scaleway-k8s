@@ -1,0 +1,51 @@
+---
+all:
+  vars:
+    basic_auth_user: admin
+    basic_auth_password: admin
+    # replace with public ip
+    scaleway_ipaddr: your.public.ipv4.address
+    # replace with domain
+    scaleway_reverse_ipaddr: yourdomain.tld
+
+proxy:
+  hosts:
+    proxy0:
+      # replace with public ip
+      ansible_host: 212.47.225.64
+      vpn_ip: 192.168.66.1
+    proxy1:
+      # replace with private ip
+      ansible_host: 10.5.1.101
+      ansible_ssh_common_args: -o ProxyCommand="ssh -q -C -o ControlMaster=auto -o ControlPersist=5m -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$public_ip -W %h:%p"
+      vpn_ip: 192.168.66.2
+
+masters:
+  hosts:
+    master0:
+      # replace with private ip
+      ansible_host: 10.5.1.102
+      vpn_ip: 192.168.66.3
+    master1:
+      # replace with private ip
+      ansible_host: 10.5.1.103
+      vpn_ip: 192.168.66.4
+    master2:
+      # replace with private ip
+      ansible_host: 10.5.1.104
+      vpn_ip: 192.168.66.5
+
+workers:
+  hosts:
+    worker0:
+      # replace with private ip
+      ansible_host: 10.5.1.105
+      vpn_ip: 192.168.66.6
+    worker1:
+      # replace with private ip
+      ansible_host: 10.5.1.106
+      vpn_ip: 192.168.66.7
+    worker2:
+      # replace with private ip
+      ansible_host: 10.5.1.107
+      vpn_ip: 192.168.66.8

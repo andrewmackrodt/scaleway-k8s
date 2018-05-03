@@ -1,0 +1,29 @@
+---
+# generating the kubeadm config file only on master nodes
+- name: Creating kubeadm_config file
+  template:
+    src: kubeadm-config.j2
+    dest: /tmp/kubeadm_config
+  when:
+    - groups.masters | length > 1
+    - "'masters' in group_names"
+
+# KUBELET_EXTRA_ARGS
+- name: Additional configuration
+  template:
+    src: local-extras.conf.j2
+    dest: /etc/systemd/system/kubelet.service.d/90-local-extras.conf
+    mode: 0640
+  when:
+    - "kubelet_fail_swap_on == False"
+  notify:
+    - reload systemd
+    - restart kubelet
+
+- meta: flush_handlers
+
+- name: Creating .kube file in $HOME
+  file:
+    path: ~/.kube
+    state: directory
+  when: "'masters' in group_names"

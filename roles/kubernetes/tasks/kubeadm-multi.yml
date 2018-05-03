@@ -1,0 +1,39 @@
+---
+- name: Distribute /etc/kubernetes/pki to other masters
+  synchronize:
+    src: /etc/kubernetes/pki/
+    dest: /etc/kubernetes/pki/
+    recursive: True
+  delegate_to: "{{ initial_master }}"
+  # forward ssh agent by preserving environment variables with sudo
+  become_flags: "-E"
+
+- block:
+    - name: Initializing other masters
+      shell: |
+        kubeadm init \
+          --config /tmp/kubeadm_config
+          {%- if kubeadm_ignore_preflight_errors | length > 0 %} \
+            --ignore-preflight-errors={{ kubeadm_ignore_preflight_errors }}
+          {% endif %}
+      register: kubeadm_output
+      failed_when: "'Your Kubernetes master has initialized successfully' not in kubeadm_output.stdout"
+
+    - name: Kubeadm output
+      debug: var=kubeadm_output
+
+  when: ansible_hostname not in hostvars[initial_master]['kubectl_output'].stdout
+
+# fixing kubectl
+- name: kubectl config
+  copy:
+    src: /etc/kubernetes/kubelet.conf
+    dest: /root/.kube/config
+    remote_src: True
+
+- name: Wait for master to be ready
+  shell: "kubectl get nodes $(hostname) | tail -n+2 | awk '{ print $2 }'"
+  register: result
+  until: result.stdout.find("Ready") == 0
+  retries: 36
+  delay: 10

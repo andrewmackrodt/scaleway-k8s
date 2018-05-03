@@ -1,0 +1,52 @@
+---
+- name: Kill existing tunnel connections
+  shell: |
+    CONNECTION_PIDS=$(ps aux | awk '$1 == "{{ proxy_ssh_user }}" && $0 ~ /ssh -N -f/ { print $2 }')
+    echo $CONNECTION_PIDS | xargs -r kill
+    echo "$CONNECTION_PIDS" | grep -vE '^$' | wc -l
+  register: ssh_result
+  changed_when: ssh_result.stdout_lines | last | int > 0
+
+- name: Remove tunnel interfaces
+  shell:
+    cmd: |
+      bash -s <<'EOF'
+      TUN_INTERFACE_FILES=$(grep -El '^## sshproxy' /etc/network/interfaces.d/tun*)
+      IFS=$'\n\t'
+      for file in $TUN_INTERFACE_FILES; do
+          interface=$(basename $file)
+          echo $interface
+          rm $file
+          ip link delete $interface
+      done
+      EOF
+  register: tun_result
+  changed_when: tun_result.stdout_lines | length > 0
+
+- name: Remove tunnel iptables (1/2)
+  iptables:
+    state: absent
+    chain: FORWARD
+    in_interface: "{{ proxy_interface }}"
+    out_interface: "{{ item }}"
+    ctstate:
+      - RELATED
+      - ESTABLISHED
+    jump: ACCEPT
+  with_items: "{{ tun_result.stdout_lines }}"
+  when: inventory_hostname == proxy_router_hostname
+
+- name: Remove tunnel iptables (2/2)
+  iptables:
+    state: absent
+    chain: FORWARD
+    in_interface: "{{ item }}"
+    out_interface: "{{ proxy_interface }}"
+    jump: ACCEPT
+  with_items: "{{ tun_result.stdout_lines }}"
+  when: inventory_hostname == proxy_router_hostname
+
+- name: Remove authorized keys file
+  file:
+    path: "/home/{{ proxy_ssh_user }}/.ssh/authorized_keys"
+    state: absent

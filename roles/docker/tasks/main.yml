@@ -2,11 +2,6 @@
 - name: Docker installation for Ubuntu distribution
   block:
 
-  - name: Update all packages to the latest version
-    apt:
-      upgrade: dist
-      update_cache: yes
-
   - name: Ensure docker packages are not present
     apt:
       state: absent
@@ -16,33 +11,25 @@
       - docker-engine
       - docker.io
 
-  - name: Install package for Docker.io https Docker repository
+  - name: Install docker package dependencies
     apt:
       state: latest
       name: "{{ item }}"
+      update_cache: yes
+      cache_valid_time: 86400
     with_items:
       - apt-transport-https
       - ca-certificates
       - curl
       - software-properties-common
+    register: result
+    retries: 3
+    until: result is success
 
-  - name: Adding Docker official gpg key (without proxy)
+  - name: Adding Docker official gpg key
     apt_key:
       url: "{{ docker_apt_key }}"
       state: present
-    when: 
-      - "'proxy' in group_names"
-      - inventory_hostname == groups['proxy'][0]
-
-  - name: Adding Docker official gpg key (with proxy)
-    apt_key:
-      url: "{{ docker_apt_key }}"
-      state: present
-    environment: 
-      https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
-    when:
-    #  - "'workers' in group_names or 'masters' in group_names" 
-      - inventory_hostname != groups['proxy'][0]
 
   - name: Setting Docker repository depending on arch
     set_fact:
@@ -62,30 +49,45 @@
       state: present
       filename: 'docker'
 
+  # TODO fix this - fails when ip route is using tun0 in scaleway
+  - name: Explictly create docker0
+    shell: |
+      ip link add name docker0 type bridge || true
+      ip addr add dev docker0 172.17.0.1/16 || true
+
   - name: Install docker-ce
     apt:
-      name: docker-ce
-      state: latest
+      name: docker-ce={{ docker_version }}
       update_cache: yes
+    register: result
+    retries: 3
+    until: result is success
+
+  - name: Pin docker-ce release
+    copy:
+      dest: /etc/apt/preferences.d/docker-ce
+      content: |
+        Package: docker-ce
+        Pin: version {{ docker_version }}
+        Pin-Priority: 1002
 
   - name: Fixing systemd unit for Docker config file
     template:
       src: docker.service.j2
       dest: /lib/systemd/system/docker.service
-    notify:
-      - reload systemd
-    when: inventory_hostname != groups['proxy'][0]
+    notify: reload systemd
 
-  - name: Flushing handlers
-    meta: flush_handlers
-    when: "'workers' in group_names or 'masters' in group_names" 
+  - name: Create docker config directory
+    file:
+      path: /etc/docker
+      mode: 0700
+      recurse: yes
 
   - name: Templating /etc/docker/daemon.json
     template:
       src: daemon.json.j2
       dest: /etc/docker/daemon.json
-    notify:
-      - restart docker
+    notify: restart docker
 
   - name: Flushing handlers 2
     meta: flush_handlers
@@ -95,7 +97,6 @@
     register: docker_version
 
   - name: Printing Docker version
-    debug:
-      var: docker_version
+    debug: var=docker_version
 
   when: ansible_distribution == "Ubuntu"

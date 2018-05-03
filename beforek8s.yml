@@ -1,43 +1,8 @@
-# Setting up all hosts
-- hosts: proxy:masters:workers
-  tasks: [ ]
+---
+- import_playbook: proxy.yml
 
-- hosts: proxy
-  roles:
-    - tinyproxy
-
-# this force reload tinyproxy
-- hosts: proxy
-  tasks:
-    - meta: flush_handlers
-
-# Setting up apt-proxy on master and workers (private ips)
-- hosts: masters:workers
-  roles:
-    - apt-proxy
-
-# Setting mesh vpn using tinc
 - hosts: proxy:masters:workers
   roles:
-    - tinc
+    - iptables
 
-# Proxy is now listening on tinc ip
-- hosts: proxy
-  roles:
-    - tinyproxy
-
-- hosts: proxy
-  tasks:
-    - meta: flush_handlers
-
-# Apt proxy now should use tinc ip
-- hosts: masters:workers
-  roles:
-    - apt-proxy
-
-# Ready to install docker
-- hosts: proxy:masters:workers
-  roles:
-    - common
-    - docker
-
+- import_playbook: docker.yml

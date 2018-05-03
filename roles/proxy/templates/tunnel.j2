@@ -1,0 +1,40 @@
+#!/bin/bash
+
+for i in `seq {{ proxy_ssh_tun_index_min }} 255`; do
+    interface=tun${i}
+    file=/etc/network/interfaces.d/$interface
+    ln -s /dev/null "$file" 2>/dev/null
+    if [[ $? -eq 0 ]]; then
+        INTERFACE_ID=$i
+        IP_SELF={{ proxy_ssh_ip_prefix }}${INTERFACE_ID}.2
+        IP_PEER={{ proxy_ssh_ip_prefix }}${INTERFACE_ID}.1
+
+        tmp=$(mktemp)
+        cat <<EOF2 | sed -E 's/^ {8}//' | tee "$tmp" >/dev/null
+        ## sshproxy
+        #{ "router_hostname": "{{ ansible_hostname }}",
+        #  "router_ip": "$IP_SELF",
+        #  "target_hostname": "{{ item }}",
+        #  "target_ip": "$IP_PEER",
+        #  "interface_id": $INTERFACE_ID,
+        #  "interface": "$interface"
+        #}
+EOF2
+        mv -f "$tmp" "$file"
+
+        break
+    fi
+done
+
+if [[ -z "$INTERFACE_ID" ]]; then
+    echo "ERR could not create tunnel interface" >&2
+    exit 1
+fi
+
+set -e
+
+ip tuntap add mode tun dev $interface
+ip addr add $IP_SELF/30 peer $IP_PEER dev $interface
+ip link set dev $interface up
+
+grep -E "^#" "$file" | grep -vE "^##" | sed -E "s/^#//"

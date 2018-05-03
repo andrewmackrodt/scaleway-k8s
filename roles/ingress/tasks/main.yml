@@ -2,19 +2,19 @@
 - name: nginx_ingress_controller | Getting node labels
   command: "kubectl get nodes -l role=ingress-controller"
   register: nodes
-  when: inventory_hostname == groups["masters"][0]
+  when: inventory_hostname == initial_master
 
 - name: nginx_ingress_controller | Printing nodes
   debug: var=nodes
-  when: inventory_hostname == groups["masters"][0]
+  when: inventory_hostname == initial_master
 
 - name: nginx_ingress_controller | Labelling proxy nodes with role=ingress_controller
-  command: "kubectl label node {{ item }} role=ingress-controller"
+  command: "kubectl label node {{ hostvars[item].ansible_hostname }} role=ingress-controller"
   with_items:
     - "{{ groups['proxy'] }}"
   when:
-    - inventory_hostname == groups["masters"][0]
-    - '"{{ item }}" not in nodes.stdout'
+    - inventory_hostname == initial_master
+    - hostvars[item].ansible_hostname not in nodes.stdout
 
 - name: nginx_ingress_controller | Templating manifests
   template:
@@ -29,7 +29,7 @@
     - nginx-ingress-clusterole.yml.j2
     - nginx-ingress-controller.yml.j2
     - nginx-ingress-service.yml.j2
-  when: inventory_hostname == groups["masters"][0]
+  when: inventory_hostname == initial_master
 
 - name: nginx_ingress_controller | Deploy the nginx_ingress_controller
   kube:
@@ -46,7 +46,7 @@
     - { 'name': 'nginx-ingress-cfg', 'type': 'configmap', 'file': '/tmp/nginx-ingress-configmap.yml' }
     - { 'name': 'nginx-ingress-controller', 'type': 'deploy', 'file': '/tmp/nginx-ingress-controller.yml' }
     - { 'name': 'nginx-ingress', 'type': 'svc', 'file': '/tmp/nginx-ingress-service.yml' }
-  when: inventory_hostname == groups["masters"][0]
+  when: inventory_hostname == initial_master
 
 - name: nginx_ingress_controller | Removing manifest
   file:
@@ -61,7 +61,7 @@
     - nginx-ingress-clusterole.yml
     - nginx-ingress-controller.yml
     - nginx-ingress-service.yml
-  when: inventory_hostname == groups["masters"][0]
+  when: inventory_hostname == initial_master
 
 - name: nginx_ingress_controller | Creating directory for scaleway-ipmove
   file:
@@ -74,8 +74,6 @@
     repo: https://github.com/chmod666org/scaleway-ipmove
     dest: /usr/local/bin/scaleway-ipmove
     force: yes
-  environment:
-    https_proxy: "http://{{ hostvars[groups['proxy'][0]]['ansible_tun0']['ipv4']['address'] }}:8888"
   when: "'proxy' in group_names"
 
 - name: nginx_ingress_controller | notify.sh
@@ -97,35 +95,3 @@
   when:
     - "'proxy' in group_names"
     - groups.proxy|length > 1
-
-# scw command line does not allow you to attach/detach proxy ip
-
-#- name: nginx_ingress_controller | Installing go on proxy node (needed for scw)
-#  apt:
-#    name: "golang"
-#    state: latest
-#  when:
-#    - "'proxy' in group_names"
-
-#- name: nginx_ingress_controller | Creating GOPATH
-#  file:
-#    path: /usr/local/share/go
-#    state: directory
-#  when:
-#    - "'proxy' in group_names"
-
-#- name: nginx_ingress_controller | Getting scw
-#  command: "/usr/bin/go get -u github.com/scaleway/scaleway-cli/cmd/scw"
-#  environment:
-#    GOPATH: "/usr/local/share/go"
-#    GO15VENDOREXPERIMENT: 1
-#  when:
-#    - "'proxy' in group_names"
-
-#- name: nginx_ingress_controller | Configuring scw
-#  template:
-#    src: scwrc.j2
-#    dest: /root/.scwrc
-#    mode: 0600
-#  when:
-#    - "'proxy' in group_names"
